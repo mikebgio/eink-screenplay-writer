@@ -8,7 +8,7 @@ import type {
   TitleEntry,
 } from './types';
 
-const SCENE_PREFIX = /^(INT\.\/EXT\.|INT\/EXT|INT\.|EXT\.|EST\.|I\/E)(\s|$)/i;
+const SCENE_PREFIX = /^(INT\.?\/EXT|INT|EXT|EST|I\/E)(\.|\s)/i;
 const SCENE_NUMBER = /\s*#([^#\s][^#]*?)#\s*$/;
 const TITLE_KEY = /^([A-Za-z0-9][A-Za-z0-9 _-]*?):[ \t]*(.*)$/;
 const GROUP_TYPES = new Set<ElementType>(['character', 'parenthetical', 'dialogue']);
@@ -302,8 +302,12 @@ export function analyze(text: string): Analysis {
     dualRight = false;
     if (cue.dual && lastChar >= 0) {
       const between = drafts.slice(lastChar);
+      // A pair has exactly two halves: a group that is already dual can't start another pair.
       const adjacent = between.every(
-        (x) => GROUP_TYPES.has(x.type) || x.type === 'note' || x.type === 'boneyard',
+        (x) =>
+          (GROUP_TYPES.has(x.type) && x.dual === undefined) ||
+          x.type === 'note' ||
+          x.type === 'boneyard',
       );
       if (adjacent) {
         for (const x of between) if (GROUP_TYPES.has(x.type)) x.dual ??= 'left';
@@ -380,7 +384,7 @@ export function analyze(text: string): Analysis {
     } else if (s.startsWith('#')) {
       const level = /^#+/.exec(s)![0].length;
       single({ type: 'section', lines: [i], parts: [s.slice(level).trim()], level });
-    } else if (/^=(?!==)/.test(s)) {
+    } else if (/^=(?!=)/.test(s)) {
       single({ type: 'synopsis', lines: [i], parts: [s.slice(1).trim()] });
     } else if (s.startsWith('!')) {
       cur = push({
@@ -393,7 +397,7 @@ export function analyze(text: string): Analysis {
       single({ type: 'scene-heading', lines: [i], parts: [s.slice(1).trim()], forced: true });
     } else if (s.length >= 2 && s.startsWith('>') && s.endsWith('<')) {
       cur = push({ type: 'centered', lines: [i], parts: [s.slice(1, -1).trim()] });
-    } else if (s.startsWith('>')) {
+    } else if (s.startsWith('>') && s.length > 1) {
       single({ type: 'transition', lines: [i], parts: [s.slice(1).trim()], forced: true });
     } else if (s.startsWith('~')) {
       cur = push({ type: 'lyric', lines: [i], parts: [s.slice(1).trim()] });
@@ -442,9 +446,19 @@ export function analyze(text: string): Analysis {
       }
     }
     if (EMPHASIS_TYPES.has(d.type)) {
-      const e = extractEmphasis(t);
-      t = e.text;
-      if (e.styles.length) el.styles = e.styles;
+      // Emphasis never carries across a line break.
+      const styles: StyleSpan[] = [];
+      let off = 0;
+      t = t
+        .split('\n')
+        .map((part) => {
+          const e = extractEmphasis(part);
+          for (const st of e.styles) styles.push({ ...st, from: st.from + off, to: st.to + off });
+          off += e.text.length + 1;
+          return e.text;
+        })
+        .join('\n');
+      if (styles.length) el.styles = styles;
     }
     el.text = t;
     if (d.forced) el.forced = true;

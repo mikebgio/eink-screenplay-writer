@@ -83,17 +83,32 @@ export function paginate(doc: ScriptDocument): PagedScript {
     row = 0;
   };
 
+  // A whole-line note/boneyard splits its block into two elements of the same type; the second
+  // half continues the first on the page, with no blank line between them.
+  let prev: ScriptDocument['elements'][number] | undefined; // last printed element
+  let prevEndLine = -2; // end line of the last element seen, printed or not
+  let spanJoined = false; // only notes/boneyard, with no blank line, since `prev`
+
   doc.elements.forEach((el, elementIndex) => {
+    const adjacent = el.startLine === prevEndLine + 1;
+    prevEndLine = el.endLine;
+    if (el.type === 'note' || el.type === 'boneyard') {
+      spanJoined = (spanJoined || prev?.endLine === el.startLine - 1) && adjacent;
+      return;
+    }
+    const continues = spanJoined && adjacent && prev?.type === el.type;
+    spanJoined = false;
     if (NOT_PRINTED.has(el.type)) return;
     if (el.type === 'page-break') {
       if (row > 0) startNewPage();
       return;
     }
+    prev = el;
     const layout = LAYOUT[el.type] ?? ACTION;
     const lines = wrap(el.text, layout.width);
     // Blank line between elements (not at the top of a page, and a page-ending blank is dropped).
     // wrap() always yields at least one line, so the loop's check handles a blank that ends the page.
-    if (row > 0) row += 1;
+    if (row > 0 && !continues) row += 1;
     for (const text of lines) {
       if (row >= BODY_LINES_PER_PAGE) startNewPage();
       const line: PositionedLine = {
