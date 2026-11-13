@@ -4,13 +4,18 @@ import { EditorView, drawSelection, keymap } from '@codemirror/view';
 import { elementStyles } from './elementStyles';
 import { variableMarks } from './variableMarks';
 import type { TextChange } from '../engine';
-import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
+import { historyKeymap, defaultKeymap } from '@codemirror/commands';
+import { asUndoStep, historyExtension } from './historyConfig';
+import { findExtension, openFind } from './findPanel';
+import { recheckSpelling, spellExtension, type SpellHooks } from './spellMarks';
 
 /** What the rest of the app can do to the editor: variable edits and jumping to a use. */
 export interface EditorHandle {
   getText(): string;
   /** Applies all changes as one transaction (one undo step). Offsets refer to the current text. */
-  apply(changes: TextChange[]): void;
+  apply(changes: TextChange[], userEvent?: string): void;
+  /** Opens the find panel (with the cursor in Replace when `withReplace`). */
+  openFind(withReplace?: boolean): void;
   /** Selects the range, scrolls it into view and focuses the editor. */
   reveal(from: number, to: number): void;
 }
@@ -27,6 +32,8 @@ export function Editor({
   onCursorLine,
   jump,
   onReady,
+  spell,
+  spellVersion,
 }: {
   text: string;
   revision: number;
@@ -36,6 +43,10 @@ export function Editor({
   /** Move the cursor to a 0-based source line when `seq` changes. */
   jump?: { line: number; seq: number };
   onReady?: (handle: EditorHandle) => void;
+  /** Spell-check word lists and actions. */
+  spell: SpellHooks;
+  /** Bump when the word lists changed, to re-run the check. */
+  spellVersion: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(undefined);
@@ -46,9 +57,20 @@ export function Editor({
   const onCursorRef = useRef(onCursorLine);
   onCursorRef.current = onCursorLine;
   const lastLine = useRef(-1);
+  const spellRef = useRef(spell);
+  spellRef.current = spell;
 
   const extensions = useRef([
-    history(),
+    historyExtension(),
+    // The WebView's own spell-check is off: its underlines can't be controlled or synced.
+    EditorView.contentAttributes.of({ spellcheck: 'false' }),
+    findExtension,
+    spellExtension({
+      personal: () => spellRef.current.personal(),
+      ignored: () => spellRef.current.ignored(),
+      addToDictionary: (w) => spellRef.current.addToDictionary(w),
+      ignoreInScript: (w) => spellRef.current.ignoreInScript(w),
+    }),
     drawSelection({ cursorBlinkRate: 0 }),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
@@ -77,9 +99,10 @@ export function Editor({
     view.current = v;
     onReady?.({
       getText: () => v.state.doc.toString(),
-      apply: (changes) => {
-        if (changes.length > 0) v.dispatch({ changes, userEvent: 'input.variable' });
+      apply: (changes, userEvent = 'input.variable') => {
+        if (changes.length > 0) v.dispatch(asUndoStep({ changes }, userEvent));
       },
+      openFind: (withReplace) => void openFind(v, withReplace),
       reveal: (from, to) => {
         const len = v.state.doc.length;
         v.dispatch({
@@ -101,6 +124,13 @@ export function Editor({
     lastLine.current = 0; // the new state's cursor is on the first line
     v.setState(EditorState.create({ doc: latest.current.text, extensions: extensions.current }));
   }, [revision]);
+
+  const seenSpell = useRef(spellVersion);
+  useEffect(() => {
+    if (seenSpell.current === spellVersion) return;
+    seenSpell.current = spellVersion;
+    view.current?.dispatch({ effects: recheckSpelling.of(null) });
+  }, [spellVersion]);
 
   const seenJump = useRef(jump?.seq);
   useEffect(() => {
