@@ -62,7 +62,7 @@ describe('paginate', () => {
     expect(lines.length).toBeGreaterThan(1);
     for (const l of lines) {
       expect(l.text.length).toBeLessThanOrEqual(60);
-      expect(l.x).toBe(1.5);
+      expect(l.xIn).toBe(1.5);
     }
     expect(lines.some((l) => l.text.length > 50)).toBe(true);
   });
@@ -70,18 +70,18 @@ describe('paginate', () => {
   it('wraps long dialogue at 35 characters, indented 2.5 inches', () => {
     const long = words('talk', 30);
     const lines = paginate(parse(`BOB\n${long}`)).pages[0]!.lines;
-    const dialogue = lines.filter((l) => l.type === 'dialogue');
+    const dialogue = lines.filter((l) => l.kind === 'dialogue');
     expect(dialogue.length).toBeGreaterThan(1);
     for (const l of dialogue) {
       expect(l.text.length).toBeLessThanOrEqual(35);
-      expect(l.x).toBe(2.5);
+      expect(l.xIn).toBe(2.5);
     }
-    expect(lines.find((l) => l.type === 'character')!.x).toBe(3.7);
+    expect(lines.find((l) => l.kind === 'character')!.xIn).toBe(3.7);
   });
 
   it('puts one blank line between elements', () => {
     const lines = paginate(parse('INT. A - DAY\n\nHe waits.')).pages[0]!.lines;
-    expect(lines[1]!.y - lines[0]!.y).toBeCloseTo(2 / 6);
+    expect(lines[1]!.yLine - lines[0]!.yLine).toBe(2);
   });
 
   it('produces more than one page for a 200-line script, with 54 body lines per page', () => {
@@ -89,15 +89,17 @@ describe('paginate', () => {
     const paged = paginate(parse(script));
     expect(paged.pageCount).toBeGreaterThan(1);
     expect(paged.pages[0]!.lines.length).toBeLessThanOrEqual(54);
+    expect(paged.estimatedMinutes).toBe(paged.pageCount);
     expect(paged.pages.map((p) => p.number)).toEqual(paged.pages.map((_, i) => i + 1));
   });
 
   it('fills exactly 54 body rows before breaking the page', () => {
     const block = words('Row ', 60, '\n');
     const paged = paginate(parse(block));
-    expect(paged.pages.map((p) => p.lines.length)).toEqual([54, 6]);
-    expect(paged.pages[0]!.lines.at(-1)!.y).toBeCloseTo(1 + 53 / 6);
-    expect(paged.pages[1]!.lines[0]!.y).toBeCloseTo(1);
+    expect(paged.pages.map((p) => p.lines.length)).toEqual([54, 7]); // page 2 also carries its page number
+    expect(paged.pages[0]!.lines.at(-1)!.yLine).toBe(53);
+    expect(paged.pages[1]!.lines[0]).toMatchObject({ kind: 'page-number', text: '2.', yLine: -3 });
+    expect(paged.pages[1]!.lines[1]!.yLine).toBe(0);
   });
 
   it('parses an indented scene heading as a heading, not a character cue', () => {

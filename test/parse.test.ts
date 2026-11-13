@@ -173,19 +173,19 @@ describe('pagination of every element type', () => {
       parse('MARA\n(quietly)\nHi.\n\nCUT TO:\n\n>THE END<\n\nBefore.\n\n===\n\nAfter.'),
     );
     const all = paged.pages.flatMap((p) => p.lines);
-    expect(all.find((l) => l.type === 'parenthetical')).toMatchObject({ x: 3.1 });
-    const t = all.find((l) => l.type === 'transition')!;
-    expect(t.x + t.text.length / 10).toBeCloseTo(7.5);
-    const c = all.find((l) => l.type === 'centered')!;
-    expect(c.x + c.text.length / 20).toBeCloseTo(4.5);
+    expect(all.find((l) => l.kind === 'parenthetical')).toMatchObject({ xIn: 3.1 });
+    const t = all.find((l) => l.kind === 'transition')!;
+    expect(t.xIn + t.text.length / 10).toBeCloseTo(7.5);
+    const c = all.find((l) => l.kind === 'centered')!;
+    expect(c.xIn + c.text.length / 20).toBeCloseTo(4.5);
     expect(paged.pageCount).toBe(2);
-    expect(paged.pages[1]!.lines.map((l) => l.text)).toEqual(['After.']);
+    expect(paged.pages[1]!.lines.map((l) => l.text)).toEqual(['2.', 'After.']);
   });
 
   it('wraps parentheticals at 2.4 inches', () => {
     const lines = paginate(parse('MARA\n(a very long parenthetical remark indeed)\nHi.')).pages[0]!
       .lines;
-    const p = lines.filter((l) => l.type === 'parenthetical');
+    const p = lines.filter((l) => l.kind === 'parenthetical');
     expect(p.length).toBeGreaterThan(1);
     for (const l of p) expect(l.text.length).toBeLessThanOrEqual(24);
   });

@@ -63,9 +63,31 @@ body,
 .pane-editor {
   border-right: 2px solid #000;
 }
-/* Reserve the scrollbar so the print view's width (which drives its scale) never changes with its height. */
+/* One page at a time, never scrolled: the page is scaled to the pane's width. */
 .pane-print {
-  scrollbar-gutter: stable;
+  overflow: hidden;
+}
+.pane-hidden {
+  display: none;
+}
+.print-view {
+  outline: none;
+}
+.print-status,
+.layout-toggle {
+  display: flex;
+  gap: 8px;
+}
+.print-status {
+  justify-content: space-between;
+  padding: 0 0 6px;
+}
+.layout-toggle button[aria-pressed='true'] {
+  color: #fff;
+  background: #000;
+}
+.print-host {
+  cursor: pointer;
 }
 @media (max-width: 899px) {
   .app {

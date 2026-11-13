@@ -13,10 +13,16 @@ export function Editor({
   text,
   revision,
   onChange,
+  onCursorLine,
+  jump,
 }: {
   text: string;
   revision: number;
   onChange: (text: string) => void;
+  /** Called with the 0-based source line whenever the cursor moves to a different line. */
+  onCursorLine?: (line: number) => void;
+  /** Move the cursor to a 0-based source line when `seq` changes. */
+  jump?: { line: number; seq: number };
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(undefined);
@@ -24,6 +30,9 @@ export function Editor({
   onChangeRef.current = onChange;
   const latest = useRef({ text, revision });
   latest.current = { text, revision };
+  const onCursorRef = useRef(onCursorLine);
+  onCursorRef.current = onCursorLine;
+  const lastLine = useRef(-1);
 
   const extensions = useRef([
     history(),
@@ -34,6 +43,13 @@ export function Editor({
     EditorView.updateListener.of((u) => {
       if (u.docChanged) {
         onChangeRef.current(u.state.doc.toString());
+      }
+      if (u.docChanged || u.selectionSet) {
+        const line = u.state.doc.lineAt(u.state.selection.main.head).number - 1;
+        if (line !== lastLine.current || u.docChanged) {
+          lastLine.current = line;
+          onCursorRef.current?.(line);
+        }
       }
     }),
   ]);
@@ -56,6 +72,16 @@ export function Editor({
     seen.current = revision;
     v.setState(EditorState.create({ doc: latest.current.text, extensions: extensions.current }));
   }, [revision]);
+
+  const seenJump = useRef(jump?.seq);
+  useEffect(() => {
+    const v = view.current;
+    if (!v || !jump || seenJump.current === jump.seq) return;
+    seenJump.current = jump.seq;
+    const line = v.state.doc.line(Math.min(Math.max(jump.line + 1, 1), v.state.doc.lines));
+    v.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
+    v.focus();
+  }, [jump]);
 
   return <div class="editor-host" ref={host} />;
 }
