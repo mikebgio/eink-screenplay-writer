@@ -156,6 +156,7 @@ describe('new script template', () => {
     expect(text).toMatch(/^Title: .+\nCredit: .+\nAuthor: .*\nDraft date: 2026-11-13\n/);
     expect(text).toContain('FADE IN:');
     const doc = parse(text);
+    expect(doc.titlePage.map((t) => t.key)).toEqual(['Title', 'Credit', 'Author', 'Draft date']);
     expect(doc.elements.some((e) => e.type === 'scene-heading')).toBe(true);
   });
 });

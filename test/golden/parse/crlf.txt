@@ -1,0 +1,4 @@
+scene-heading [0] | INT. HOUSE - DAY
+action [2] | Windows line endings.
+character [4] | BOB
+dialogue [5] | Hi.

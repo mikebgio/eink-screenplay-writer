@@ -1,0 +1,6 @@
+character [0] | BOB (V.O.) | ext=V.O.
+dialogue [1] | I remember it well.
+character [3] | ANN (O.S.) (CONT'D) | ext=O.S. CONT'D
+dialogue [4] | Still here.
+character [6] | CARL (on the radio) | ext=on the radio
+dialogue [7] | Copy that.

@@ -1,0 +1,5 @@
+action [0-1] | The door creaks.\nA cat leaps out.
+action [3] | INT. NOT A HEADING | forced
+action [5-6] | SHOUTING ALOUD\nAnd it keeps going. | forced
+action [8] | SMASH CUT TO BLACK
+action [10] | HOUSE

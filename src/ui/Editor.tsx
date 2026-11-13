@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { EditorState } from '@codemirror/state';
 import { EditorView, drawSelection, keymap } from '@codemirror/view';
+import { elementStyles } from './elementStyles';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 
 /**
@@ -29,6 +30,7 @@ export function Editor({
     drawSelection({ cursorBlinkRate: 0 }),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
+    elementStyles,
     EditorView.updateListener.of((u) => {
       if (u.docChanged) {
         onChangeRef.current(u.state.doc.toString());
