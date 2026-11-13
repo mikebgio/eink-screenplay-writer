@@ -34,3 +34,15 @@ export async function hashText(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+/**
+ * Synchronous content hash (FNV-1a, 64-bit as hex). The fake must resolve without real I/O:
+ * crypto.subtle completes on a thread pool, which fake timers can't flush, so tests raced it.
+ */
+export function syncHash(text: string): string {
+  let h = 0xcbf29ce484222325n;
+  for (let i = 0; i < text.length; i++) {
+    h = BigInt.asUintN(64, (h ^ BigInt(text.charCodeAt(i))) * 0x100000001b3n);
+  }
+  return h.toString(16).padStart(16, '0');
+}

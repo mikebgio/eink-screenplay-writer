@@ -1,16 +1,6 @@
-import type { FileRef, SidecarStore, StoragePort } from './port';
-
-/**
- * Synchronous content hash (FNV-1a, 64-bit as hex). The fake must resolve without real I/O:
- * crypto.subtle completes on a thread pool, which fake timers can't flush, so tests raced it.
- */
-export function syncHash(text: string): string {
-  let h = 0xcbf29ce484222325n;
-  for (let i = 0; i < text.length; i++) {
-    h = BigInt.asUintN(64, (h ^ BigInt(text.charCodeAt(i))) * 0x100000001b3n);
-  }
-  return h.toString(16).padStart(16, '0');
-}
+import { syncHash, type FileRef, type SidecarStore, type StoragePort } from './port';
+export { syncHash };
+import { snapshotDirName } from './snapshots';
 
 /** In-memory StoragePort for tests. Pickers return whatever the test queued up. */
 export class MemoryStorage implements StoragePort {
@@ -67,7 +57,7 @@ export class MemoryStorage implements StoragePort {
   }
   sidecar(ref: FileRef): SidecarStore | null {
     if (!ref.folderUri) return null;
-    const key = ref.folderUri;
+    const key = `${ref.folderUri}/${snapshotDirName(ref.name)}`;
     const store = () => {
       let m = this.sidecars.get(key);
       if (!m) this.sidecars.set(key, (m = new Map()));

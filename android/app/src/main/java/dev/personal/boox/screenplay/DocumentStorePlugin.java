@@ -182,18 +182,20 @@ public class DocumentStorePlugin extends Plugin {
         return uri == null ? null : DocumentFile.fromTreeUri(getContext(), Uri.parse(uri));
     }
 
-    private DocumentFile sidecarDir(String folderUri, boolean create) {
+    private DocumentFile sidecarDir(PluginCall call, boolean create) {
+        String folderUri = call.getString("folderUri");
+        String dirName = call.getString("dir", SIDECAR_DIR);
         DocumentFile root = folder(folderUri);
         if (root == null) return null;
-        DocumentFile d = root.findFile(SIDECAR_DIR);
-        if (d == null && create) d = root.createDirectory(SIDECAR_DIR);
+        DocumentFile d = root.findFile(dirName);
+        if (d == null && create) d = root.createDirectory(dirName);
         return d;
     }
 
     @PluginMethod
     public void sidecarList(PluginCall call) {
         JSArray names = new JSArray();
-        DocumentFile d = sidecarDir(call.getString("folderUri"), false);
+        DocumentFile d = sidecarDir(call, false);
         if (d != null) {
             for (DocumentFile f : d.listFiles()) if (f.getName() != null) names.put(f.getName());
         }
@@ -205,7 +207,7 @@ public class DocumentStorePlugin extends Plugin {
     @PluginMethod
     public void sidecarRead(PluginCall call) {
         try {
-            DocumentFile d = sidecarDir(call.getString("folderUri"), false);
+            DocumentFile d = sidecarDir(call, false);
             DocumentFile f = d == null ? null : d.findFile(call.getString("name"));
             JSObject out = new JSObject();
             out.put("text", f == null ? null : readUri(f.getUri()));
@@ -218,7 +220,7 @@ public class DocumentStorePlugin extends Plugin {
     @PluginMethod
     public void sidecarWrite(PluginCall call) {
         try {
-            DocumentFile d = sidecarDir(call.getString("folderUri"), true);
+            DocumentFile d = sidecarDir(call, true);
             if (d == null) throw new Exception("No sidecar folder");
             String name = call.getString("name");
             DocumentFile f = d.findFile(name);
@@ -233,7 +235,7 @@ public class DocumentStorePlugin extends Plugin {
 
     @PluginMethod
     public void sidecarRemove(PluginCall call) {
-        DocumentFile d = sidecarDir(call.getString("folderUri"), false);
+        DocumentFile d = sidecarDir(call, false);
         DocumentFile f = d == null ? null : d.findFile(call.getString("name"));
         if (f != null) f.delete();
         call.resolve();

@@ -4,7 +4,7 @@ import type { StoragePort } from '../storage/port';
 import { FsAccessStorage, LocalStorageFolder } from './browserStorage';
 import { NativeStorage } from './nativeStorage';
 
-export { FilesystemJournal, preferencesStore } from './appStores';
+export { FilesystemJournal, preferencesStore, privateSnapshotStore } from './appStores';
 
 /** True when running inside the Capacitor Android shell (false in a desktop browser). */
 export function isNative(): boolean {
