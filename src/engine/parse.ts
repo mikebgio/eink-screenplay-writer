@@ -141,7 +141,7 @@ function isValidCue(name: string): boolean {
 type Mark = { ch: '*' | '_'; n: number; start: number; end: number; open: boolean; close: boolean };
 
 /** Removes emphasis markers and `\*` `\_` escapes; returns style spans over the cleaned text. */
-function extractEmphasis(src: string): { text: string; styles: StyleSpan[] } {
+export function extractEmphasis(src: string): { text: string; styles: StyleSpan[] } {
   if (!/[*_\\]/.test(src)) return { text: src, styles: [] };
   type Tok = string | Mark;
   const toks: Tok[] = [];

@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { paginate, parse } from '../engine';
+import {
+  displayPages,
+  formatRunningTime,
+  pageIndexForLine,
+  paginate,
+  parse,
+  sourceLineOf,
+} from '../engine';
 import { createStorage, FilesystemJournal, onBackground, preferencesStore } from '../platform';
 import type { FileRef } from '../storage/port';
 import { RecentFiles } from '../storage/recent';
+import { LAYOUT_KEY, LAYOUT_MODES, nextLayout, parseLayout, type LayoutMode } from './layout';
 import { DocumentSession, type Recovery, type SaveStatus } from '../storage/session';
 import { newScriptTemplate } from '../storage/template';
 import { Editor } from './Editor';
@@ -98,7 +106,67 @@ export function App() {
     if (f) setWorkspace({ uri: f.uri, files: await storage.listFolder(f.uri) });
   });
 
-  const paged = useMemo(() => paginate(parse(debounced)), [debounced]);
+  const doc = useMemo(() => parse(debounced), [debounced]);
+  const paged = useMemo(() => paginate(doc), [doc]);
+  const pages = useMemo(() => displayPages(paged), [paged]);
+
+  // Layout mode: remembered in Preferences; default is side by side when the window is wide.
+  const [layout, setLayout] = useState<LayoutMode>(() =>
+    window.innerWidth > 1000 ? 'both' : 'editor',
+  );
+  useEffect(() => {
+    void preferencesStore.get(LAYOUT_KEY).then((v) => {
+      const saved = parseLayout(v);
+      if (saved) setLayout(saved);
+    });
+  }, []);
+  const chooseLayout = useCallback((m: LayoutMode) => {
+    setLayout(m);
+    void preferencesStore.set(LAYOUT_KEY, m);
+  }, []);
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        chooseLayout(nextLayout(layoutRef.current));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chooseLayout]);
+
+  // The print view shows one page; the editor cursor drags it along when it crosses a page boundary.
+  const [pageIndex, setPageIndex] = useState(0);
+  const [cursorLine, setCursorLine] = useState(0);
+  const [jump, setJump] = useState<{ line: number; seq: number }>({ line: 0, seq: 0 });
+  const cursorPage = useMemo(
+    () => pageIndexForLine(doc, paged, cursorLine),
+    [doc, paged, cursorLine],
+  );
+  // Set when a tapped line belongs to an element that starts on an earlier page: the cursor goes to
+  // the element's first line, but the print view stays on the page that was tapped.
+  const keepPage = useRef<number | null>(null);
+  useEffect(() => {
+    const keep = keepPage.current === cursorPage;
+    keepPage.current = null;
+    if (!keep) setPageIndex(cursorPage);
+  }, [cursorPage]);
+  // A newly opened document starts with the cursor (and the print view) at its top.
+  useEffect(() => {
+    keepPage.current = null;
+    setCursorLine(0);
+    setPageIndex(0);
+  }, [revision]);
+  const shownPage = Math.min(pageIndex, pages.length - 1);
+
+  // Switching to Print only hides the editor, which drops focus; give it to the print view so
+  // PgUp / PgDn / Space work straight away.
+  const printPane = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (layout === 'print') printPane.current?.querySelector<HTMLElement>('.print-view')?.focus();
+  }, [layout, current]);
 
   if (!current) {
     return (
@@ -127,6 +195,21 @@ export function App() {
         </button>
         <span class="doc-name">{current.name}</span>
         <span class="save-status">{STATUS_LABEL[status]}</span>
+        <span class="save-status">
+          {paged.pageCount} pp · {formatRunningTime(paged.estimatedMinutes)}
+        </span>
+        <span class="layout-toggle" role="group" aria-label="Layout (Ctrl+P)">
+          {LAYOUT_MODES.map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={layout === mode}
+              onClick={() => chooseLayout(mode)}
+            >
+              {label}
+            </button>
+          ))}
+        </span>
       </header>
       {recovery && (
         <div class="recovery">
@@ -153,11 +236,35 @@ export function App() {
         </div>
       )}
       <div class="app">
-        <section class="pane pane-editor">
-          <Editor text={text} revision={revision} onChange={onChange} />
+        <section class={`pane pane-editor${layout === 'print' ? ' pane-hidden' : ''}`}>
+          <Editor
+            text={text}
+            revision={revision}
+            onChange={onChange}
+            onCursorLine={setCursorLine}
+            jump={jump}
+          />
         </section>
-        <section class="pane pane-print">
-          <PrintView paged={paged} pageIndex={0} />
+        <section
+          ref={printPane}
+          class={`pane pane-print${layout === 'editor' ? ' pane-hidden' : ''}`}
+        >
+          <PrintView
+            paged={paged}
+            pages={pages}
+            pageIndex={shownPage}
+            onPage={setPageIndex}
+            onLine={(el) => {
+              const line = sourceLineOf(doc, el);
+              if (line === undefined) return;
+              const target = pageIndexForLine(doc, paged, line);
+              if (target !== cursorPage && target !== shownPage) keepPage.current = target;
+              setCursorLine(line);
+              setJump((j) => ({ line, seq: j.seq + 1 }));
+              // Show the editor for this jump without overwriting the saved layout choice.
+              if (layoutRef.current === 'print') setLayout('editor');
+            }}
+          />
         </section>
       </div>
     </div>

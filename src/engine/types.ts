@@ -74,28 +74,48 @@ export interface ScriptDocument {
   elements: ScriptElement[];
 }
 
-/** One rendered line on a page. Coordinates are inches from the top-left of the paper. */
+/** Page geometry. Everything is in inches or lines (6 lines per inch). */
+export interface PageSpec {
+  name: 'letter' | 'a4';
+  widthIn: number;
+  heightIn: number;
+  topMarginIn: number;
+  /** Body lines per page. */
+  bodyLines: number;
+}
+
+/** What a printed line is: a script element, the page number, or a title-page block. */
+export type LineKind =
+  ElementType | 'page-number' | 'title' | 'credit' | 'author' | 'source' | 'draft-date' | 'contact';
+
+/** One rendered line on a page. */
 export interface PositionedLine {
   text: string;
-  /** Left edge in inches. */
-  x: number;
-  /** Top edge in inches. */
-  y: number;
-  type: ElementType;
-  /** Index into ScriptDocument.elements. */
+  /** Left edge in inches from the left of the paper. */
+  xIn: number;
+  /** Row from the top of the body area (0 = first body line, 6 rows per inch). Negative = in the top margin. */
+  yLine: number;
+  kind: LineKind;
+  /** Index into ScriptDocument.elements; -1 for the page number and title-page lines. */
   elementIndex: number;
+  /** Emphasis over this line's `text` (offsets into the line, `to` exclusive). Absent if none. */
+  styles?: StyleSpan[];
 }
 
 export interface Page {
-  /** 1-based page number. */
+  /** 1-based page number; 0 for the title page. */
   number: number;
   lines: PositionedLine[];
 }
 
 export interface PagedScript {
+  /** Numbered body pages, `pages[i].number === i + 1`. Never empty. */
   pages: Page[];
+  /** Body pages only; the title page is not counted. */
   pageCount: number;
-  /** Paper size in inches. */
-  width: number;
-  height: number;
+  /** Page count x 1 minute. */
+  estimatedMinutes: number;
+  /** Present when the document has a title page. Rendered before page 1 and not numbered. */
+  titlePage?: Page;
+  spec: PageSpec;
 }

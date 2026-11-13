@@ -63,9 +63,34 @@ body,
 .pane-editor {
   border-right: 2px solid #000;
 }
-/* Reserve the scrollbar so the print view's width (which drives its scale) never changes with its height. */
+/* One page at a time, never scrolled: the whole page is scaled to fit the pane. */
 .pane-print {
-  scrollbar-gutter: stable;
+  overflow: hidden;
+}
+.pane-hidden {
+  display: none;
+}
+.print-view {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.print-status,
+.layout-toggle {
+  display: flex;
+  gap: 8px;
+}
+.print-status {
+  justify-content: space-between;
+  padding: 0 0 6px;
+}
+.layout-toggle button[aria-pressed='true'] {
+  color: #fff;
+  background: #000;
+}
+.print-sheet {
+  cursor: pointer;
 }
 @media (max-width: 899px) {
   .app {
@@ -92,11 +117,18 @@ body,
   font-family: inherit;
 }
 
+/* The host takes the space left under the status line and is only measured; the sheet is the page. */
 .print-host {
-  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   overflow: hidden;
-  border: 1px solid #000;
+}
+.print-sheet {
+  position: relative;
+  overflow: hidden;
+  outline: 1px solid #000;
+  outline-offset: -1px;
 }
 .print-page {
   position: absolute;
