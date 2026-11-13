@@ -8,7 +8,7 @@ model: sonnet
 
 # 05: Paged print view with basic page breaks
 
-**Read first:** `SPEC.md` → stories 41, 43, 45–47 and *Pagination spec*; ticket 03 Handoff notes.
+**Read first:** `SPEC.md` → stories 41, 43, 45–47 and _Pagination spec_; ticket 03 Handoff notes.
 
 ## What to build
 
@@ -18,23 +18,23 @@ Make the print view a proper paginated script. It uses the correct measurements,
 
 - **Page spec** (one object, passed to `paginate`; US Letter is the default):
 
-  | | US Letter | A4 |
-  |---|---|---|
-  | Page | 8.5 × 11 in | 8.27 × 11.69 in |
-  | Top / bottom margin | 1 in / 1 in | 1 in / 1 in |
-  | Body lines per page | 54 | 58 |
+  |                     | US Letter   | A4              |
+  | ------------------- | ----------- | --------------- |
+  | Page                | 8.5 × 11 in | 8.27 × 11.69 in |
+  | Top / bottom margin | 1 in / 1 in | 1 in / 1 in     |
+  | Body lines per page | 54          | 58              |
 
   Horizontal positions are the same for both (measured from the left edge of the page; Courier 12pt = 10 characters per inch, 6 lines per inch):
 
-  | Element | Left | Width (chars) |
-  |---|---|---|
-  | Scene heading, action | 1.5 in | 60 |
-  | Character cue | 3.7 in | 38 |
-  | Parenthetical | 3.1 in | 24 |
-  | Dialogue | 2.5 in | 35 |
-  | Transition | right edge at 7.5 in | — |
-  | Centered | centred between 1.5 and 7.5 in | 60 |
-  | Page number | right edge at 7.5 in, 0.5 in from top; none on page 1 | — |
+  | Element               | Left                                                  | Width (chars) |
+  | --------------------- | ----------------------------------------------------- | ------------- |
+  | Scene heading, action | 1.5 in                                                | 60            |
+  | Character cue         | 3.7 in                                                | 38            |
+  | Parenthetical         | 3.1 in                                                | 24            |
+  | Dialogue              | 2.5 in                                                | 35            |
+  | Transition            | right edge at 7.5 in                                  | —             |
+  | Centered              | centred between 1.5 and 7.5 in                        | 60            |
+  | Page number           | right edge at 7.5 in, 0.5 in from top; none on page 1 | —             |
 
 - **Spacing:** one blank line before every scene heading, action block, character cue, transition and centered block. None between character → parenthetical → dialogue. Skip blank lines at the very top of a page.
 - **Wrapping:** break at word boundaries. A word longer than the width is hard-broken.
@@ -49,7 +49,7 @@ Make the print view a proper paginated script. It uses the correct measurements,
   - Show "Page n of N" text.
   - Never scroll or animate.
   - The editor follows the print view: when the cursor moves to a different page, the print view jumps to that page. Tapping a line in the print view puts the editor cursor on its source line.
-- **Layout modes:** *Editor only*, *Print view only*, or *Side by side* (the default when wider than 1000 px). Toggle with `Ctrl+P`. Remember the choice in Preferences.
+- **Layout modes:** _Editor only_, _Print view only_, or _Side by side_ (the default when wider than 1000 px). Toggle with `Ctrl+P`. Remember the choice in Preferences.
 - Pagination runs on every parse (debounced). If paginating 120 pages takes more than 50 ms on desktop, move it to a Web Worker.
 
 ## Acceptance criteria
@@ -69,6 +69,7 @@ Make the print view a proper paginated script. It uses the correct measurements,
 ## Handoff notes
 
 **Engine API (`src/engine/index.ts`):**
+
 - `paginate(doc: ScriptDocument, spec: PageSpec = US_LETTER): PagedScript`. Also `US_LETTER`, `A4`, `formatRunningTime(min)` ("≈ 1h 52m"), `wrap`.
 - `PageSpec = { name: 'letter'|'a4'; widthIn; heightIn; topMarginIn; bodyLines }` (Letter 54 lines, A4 58).
 - `PagedScript = { pages: Page[]; pageCount; estimatedMinutes; titlePage?: Page; spec: PageSpec }`. `pages[i].number === i+1` and is never empty. `titlePage` has `number: 0`, is not counted in `pageCount`/`estimatedMinutes` and exists only when the title block has Title/Credit/Author(s)/Source/Draft date/Contact (other keys, e.g. `Var-*`, are ignored).
@@ -83,6 +84,6 @@ Make the print view a proper paginated script. It uses the correct measurements,
 
 **Performance:** paginating about 120 pages takes 2 ms for 126 pages on the dev Mac (logged by the test; fails above 50 ms), so no Web Worker.
 
-**Known flake (not from this ticket):** `test/storage.test.ts` "autosaves 2 s after the last edit" fails intermittently (about 1 run in 3), also with this ticket's tests excluded.
+**Known limitation:** `pageIndexForLine` maps a cursor anywhere inside an element that spans two pages to the page where the element starts. Basic breaking only splits elements taller than a full page, so it is rare now; ticket 06 splits dialogue and action across pages and should track a source line per printed line (`PositionedLine`) to fix it.
 
 **Owner checks:** tap navigation and the cursor↔page sync on the Boox itself (checked only in the desktop browser pane); A4 is only reachable through `paginate(doc, A4)` for now (no UI setting).
