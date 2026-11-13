@@ -24,17 +24,22 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function findMatches(text: string, query: string, opts: SearchOptions): Match[] {
   if (query === '') return [];
   const word = '[\\p{L}\\p{N}_]';
-  const src = opts.wholeWord
-    ? `(?<!${word})${escape(query)}(?!${word})`
-    : escape(query);
+  const isWord = (c: string | undefined) => c !== undefined && new RegExp(word, 'u').test(c);
+  const chars = [...query];
+  // A boundary only makes sense next to a word character: "(V.O.)" has none at its ends.
+  const before = opts.wholeWord && isWord(chars[0]) ? `(?<!${word})` : '';
+  const after = opts.wholeWord && isWord(chars[chars.length - 1]) ? `(?!${word})` : '';
+  const src = before + escape(query) + after;
   const re = new RegExp(src, opts.caseSensitive ? 'gu' : 'giu');
   const hidden = opts.includeHidden ? [] : findSpans(text);
   const out: Match[] = [];
+  let h = 0; // spans are sorted and don't overlap, so one pass is enough
   for (const m of text.matchAll(re)) {
     const from = m.index;
     const to = from + m[0].length;
     if (to === from) continue;
-    if (hidden.some((s) => from < s.to && to > s.from)) continue;
+    while (h < hidden.length && hidden[h]!.to <= from) h++;
+    if (h < hidden.length && hidden[h]!.from < to) continue;
     out.push({ from, to });
   }
   return out;

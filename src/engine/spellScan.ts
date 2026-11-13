@@ -1,6 +1,6 @@
 import { findSpans, parse } from './parse';
 import { scanTokens } from './variables';
-import type { ElementType } from './types';
+import type { ElementType, ScriptElement } from './types';
 
 export interface WordRange {
   from: number;
@@ -52,15 +52,22 @@ function mask(text: string): string {
   return out + text.slice(pos);
 }
 
+/** Parse and mask of the last text: scrolling and word-list changes re-check unchanged text. */
+let memo: { text: string; masked: string; elements: ScriptElement[]; words?: Set<string> } | undefined;
+function analyzed(text: string) {
+  if (memo?.text !== text) memo = { text, masked: mask(text), elements: parse(text).elements };
+  return memo;
+}
+
 /**
  * Words that may be spell-checked: those in action, dialogue, parentheticals, scene headings and
  * lyrics, outside notes, boneyard and `{{KEY}}`, and not acronyms or cues (all capitals).
  * With `range`, only elements overlapping `[from, to]` are scanned (the visible lines plus a margin).
  */
 export function checkableWords(text: string, range?: { from: number; to: number }): WordRange[] {
-  const masked = mask(text);
+  const { masked, elements } = analyzed(text);
   const out: WordRange[] = [];
-  for (const el of parse(text).elements) {
+  for (const el of elements) {
     if (!CHECKED.has(el.type)) continue;
     if (range && (el.to < range.from || el.from > range.to)) continue;
     for (const w of wordsIn(masked.slice(el.from, el.to), el.from)) {
@@ -75,6 +82,12 @@ export function checkableWords(text: string, range?: { from: number; to: number 
  * scene-heading locations, variable keys and values, and the title page's Title and Author.
  */
 export function scriptWords(text: string): Set<string> {
+  const m = analyzed(text);
+  if (!m.words) m.words = computeScriptWords(text);
+  return new Set(m.words);
+}
+
+function computeScriptWords(text: string): Set<string> {
   const doc = parse(text);
   const out = new Set<string>();
   const add = (s: string) => {

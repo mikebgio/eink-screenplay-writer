@@ -1,6 +1,13 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, keymap, type Panel, type ViewUpdate } from '@codemirror/view';
-import { closeSearchPanel, getSearchQuery, openSearchPanel, search } from '@codemirror/search';
+import {
+  SearchQuery,
+  closeSearchPanel,
+  getSearchQuery,
+  openSearchPanel,
+  search,
+  setSearchQuery,
+} from '@codemirror/search';
 import { DEFAULT_SEARCH, findMatches, selectedMatch, stepMatch, type Match, type SearchOptions } from '../engine';
 import { replaceAllSpec } from './searchEdits';
 import { asUndoStep } from './historyConfig';
@@ -89,6 +96,17 @@ function createPanel(view: EditorView): Panel {
   };
   /** Recomputes the matches; `jump` also moves to the first match at or after the cursor. */
   function refresh(jump: boolean) {
+    // CodeMirror highlights every match of the same query.
+    view.dispatch({
+      effects: setSearchQuery.of(
+        new SearchQuery({
+          search: st.query,
+          caseSensitive: st.opts.caseSensitive,
+          wholeWord: st.opts.wholeWord,
+          literal: true,
+        }),
+      ),
+    });
     compute();
     if (jump && matches.length > 0) {
       const sel = view.state.selection.main;

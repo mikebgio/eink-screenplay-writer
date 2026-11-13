@@ -11,5 +11,5 @@ export const historyExtension = () => history(HISTORY_CONFIG);
  * undo step: one transaction, never merged into the typing burst before or after it.
  */
 export function asUndoStep(spec: TransactionSpec, userEvent: string): TransactionSpec {
-  return { ...spec, userEvent, annotations: isolateHistory.of('full') };
+  return { ...spec, userEvent, annotations: [...[spec.annotations ?? []].flat(), isolateHistory.of('full')] };
 }

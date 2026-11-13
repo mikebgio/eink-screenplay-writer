@@ -53,13 +53,20 @@ export function spellExtension(hooks: SpellHooks): Extension {
       waiting.get(e.data.id)?.(e.data);
       waiting.delete(e.data.id);
     };
+    // A crashed worker answers nothing: release every waiter and start a fresh worker next time.
+    worker.onerror = () => {
+      worker?.terminate();
+      worker = undefined;
+      for (const done of waiting.values()) done({ kind: 'error', id: 0 });
+      waiting.clear();
+    };
     return worker;
   };
   const ask = <T extends SpellResponse>(req: SpellRequest & { id: number }): Promise<T | null> => {
     const w = getWorker();
     if (!w) return Promise.resolve(null);
     return new Promise((resolve) => {
-      waiting.set(req.id, (r) => resolve(r as T));
+      waiting.set(req.id, (r) => resolve(r.kind === 'error' ? null : (r as T)));
       w.postMessage(req);
     });
   };
@@ -151,9 +158,11 @@ export function spellExtension(hooks: SpellHooks): Extension {
       el.appendChild(b);
     };
     for (const s of suggestions.slice(0, 5)) {
-      item(s, () =>
-        view.dispatch(asUndoStep({ changes: { from: hit.from, to: hit.to, insert: s } }, 'input.spell')),
-      );
+      item(s, () => {
+        // The word may have moved or changed while the menu was open.
+        if (view.state.sliceDoc(hit.from, hit.to) !== hit.word) return;
+        view.dispatch(asUndoStep({ changes: { from: hit.from, to: hit.to, insert: s } }, 'input.spell'));
+      });
     }
     if (suggestions.length === 0) {
       const none = document.createElement('div');

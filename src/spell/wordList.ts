@@ -11,7 +11,13 @@ export class WordList {
     private readonly key: string,
   ) {}
 
-  async load(): Promise<string[]> {
+  private ready: Promise<string[]> | undefined;
+
+  load(): Promise<string[]> {
+    return (this.ready ??= this.read());
+  }
+
+  private async read(): Promise<string[]> {
     try {
       const raw = await this.store.get(this.key);
       const parsed: unknown = raw ? JSON.parse(raw) : [];
@@ -27,6 +33,7 @@ export class WordList {
   }
 
   async add(word: string): Promise<string[]> {
+    await this.load(); // never write before the stored list has been read
     const w = word.replace(/’/g, "'").trim();
     if (w && !this.words.some((x) => x.toLowerCase() === w.toLowerCase())) {
       this.words = [...this.words, w];

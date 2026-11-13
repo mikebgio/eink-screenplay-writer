@@ -12,6 +12,7 @@ import {
   titleValues,
   updateTitlePage,
 } from '../src/engine';
+import { WordList } from '../src/spell/wordList';
 import { SpellChecker } from '../src/spell/checker';
 import { HISTORY_CONFIG, asUndoStep, historyExtension } from '../src/ui/historyConfig';
 import { replaceAllSpec } from '../src/ui/searchEdits';
@@ -81,6 +82,11 @@ describe('updateTitlePage', () => {
     expect(titlePageChanges(SCRIPT, { title: 'Night' })).toEqual([]);
   });
 
+  it('a blank Credit stays blank; only a missing one reads as "Written by"', () => {
+    expect(titleValues('Title: A\nCredit:\n\nHi.\n').credit).toBe('');
+    expect(titleValues('Title: A\n\nHi.\n').credit).toBe('Written by');
+  });
+
   it('diffTitleValues only reports changed fields; absent credit means "Written by"', () => {
     const before = titleValues('Title: A\n\nHi.\n');
     expect(before.credit).toBe('Written by');
@@ -99,6 +105,12 @@ describe('find', () => {
   it('honours match case and whole word', () => {
     expect(findMatches(text, 'cat', { ...DEFAULT_SEARCH, caseSensitive: true }).map((x) => x.from)).toEqual([8, 16]);
     expect(findMatches(text, 'cat', { ...DEFAULT_SEARCH, wholeWord: true }).map((x) => x.from)).toEqual([0, 8, 58]);
+  });
+  it('whole word only guards word-character ends', () => {
+    const o = { ...DEFAULT_SEARCH, wholeWord: true };
+    expect(findMatches('a-foo', '-foo', o)).toHaveLength(1);
+    expect(findMatches('MARA(V.O.)', '(V.O.)', o)).toHaveLength(1);
+    expect(findMatches('foobar foo', 'foo', o)).toHaveLength(1);
   });
   it('includes notes and boneyard when asked', () => {
     expect(findMatches(text, 'cat', { ...DEFAULT_SEARCH, includeHidden: true })).toHaveLength(6);
@@ -155,9 +167,14 @@ describe('undo history', () => {
     type('c', 2, 1600);
     type('d', 3, 3000); // > 1 s later: new step
     expect(undoDepth(s)).toBe(2);
-    s = s.update({ ...asUndoStep({ changes: { from: 4, insert: 'X' } }, 'input.title'), annotations: undefined }).state;
+    type('e', 4, 3200); // within the burst's window...
+    // ...but a programmatic edit is its own step even then, and keeps the caller's annotations.
+    s = s.update(
+      asUndoStep({ changes: { from: 5, insert: 'X' }, annotations: Transaction.time.of(3300) }, 'input.title'),
+    ).state;
+    expect(undoDepth(s)).toBe(3);
     s = run(s, undo);
-    expect(s.doc.toString()).toBe('abcd');
+    expect(s.doc.toString()).toBe('abcde');
   });
 
   it('title-page save is one undo step', () => {
@@ -220,8 +237,26 @@ describe('spell-check', () => {
     expect(flagged('A blorf appears.\n', { ignored: ['blorf'] })).toEqual([]);
   });
 
+  it('accepts possessives of script names', () => {
+    expect(flagged(SCRIPT + '\nZorblax’s idea and Zorblax\'s plan.\n')).toEqual([]);
+  });
+
   it('only checks the requested range', () => {
     const t = 'Aaaa bbbb.\n\nCccc dddd.\n';
     expect(checker.check(t, { range: { from: 12, to: 20 } }).map((m) => m.word)).toEqual(['Cccc', 'dddd']);
+  });
+});
+
+describe('word list', () => {
+  it('does not wipe the stored list when a word is added before it has loaded', async () => {
+    const data = new Map([['k', JSON.stringify(['old'])]]);
+    const store = {
+      get: async (k: string) => data.get(k) ?? null,
+      set: async (k: string, v: string) => void data.set(k, v),
+    };
+    const list = new WordList(store, 'k');
+    await list.add('New');
+    expect(list.list()).toEqual(['old', 'New']);
+    expect(JSON.parse(data.get('k')!)).toEqual(['old', 'New']);
   });
 });

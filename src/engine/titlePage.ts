@@ -31,7 +31,8 @@ export function titleValues(text: string): TitleValues {
   for (const f of TITLE_FIELDS) {
     out[f.id] = entries.find((e) => keyEq(e.key, f.key))?.value ?? '';
   }
-  if (out.credit === '') out.credit = DEFAULT_CREDIT;
+  // Only a missing Credit line reads as the default; a blank one is blank on purpose.
+  if (!entries.some((e) => keyEq(e.key, 'Credit'))) out.credit = DEFAULT_CREDIT;
   return out;
 }
 

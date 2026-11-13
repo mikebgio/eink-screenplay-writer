@@ -38,7 +38,7 @@ export class SpellChecker {
     const out: Misspelling[] = [];
     for (const w of checkableWords(text, opts.range)) {
       const key = wordKey(w.word);
-      if (accepted.has(key)) continue;
+      if (accepted.has(key) || accepted.has(key.replace(/'s$/, ''))) continue;
       let ok = cache.get(key);
       if (ok === undefined) {
         ok = this.correct(w.word);
