@@ -6,6 +6,13 @@ import {
   paginate,
   parse,
   sourceLineOf,
+  deleteVariable,
+  renameVariable,
+  resolve,
+  setVariable,
+  variableUses,
+  type EditResult,
+  type VariableUse,
 } from '../engine';
 import { createStorage, FilesystemJournal, onBackground, preferencesStore } from '../platform';
 import type { FileRef } from '../storage/port';
@@ -13,7 +20,8 @@ import { RecentFiles } from '../storage/recent';
 import { LAYOUT_KEY, LAYOUT_MODES, nextLayout, parseLayout, type LayoutMode } from './layout';
 import { DocumentSession, type Recovery, type SaveStatus } from '../storage/session';
 import { newScriptTemplate } from '../storage/template';
-import { Editor } from './Editor';
+import { Editor, type EditorHandle } from './Editor';
+import { VariableDrawer } from './VariableDrawer';
 import { PrintView } from './PrintView';
 import { StartScreen } from './StartScreen';
 
@@ -43,10 +51,28 @@ export function App() {
   const [workspace, setWorkspace] = useState<{ uri: string; files: FileRef[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const editor = useRef<EditorHandle>(undefined);
+  const hasDoc = useRef(false);
+  hasDoc.current = current !== null;
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => void recent.list().then(setRecents), [recent]);
   useEffect(() => onBackground(() => void session.onBackground()), [session]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  // Ctrl+D toggles the variable drawer (captured before the editor's own Ctrl+D binding).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        // Only with a document open, and not while typing in the drawer (Ctrl+D is delete-forward there).
+        if (!hasDoc.current || (e.target as HTMLElement | null)?.closest?.('.drawer')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setDrawerOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   const show = useCallback((t: string) => {
     clearTimeout(timer.current); // a pending preview update belongs to the old document
@@ -107,7 +133,13 @@ export function App() {
   });
 
   const doc = useMemo(() => parse(debounced), [debounced]);
-  const paged = useMemo(() => paginate(doc), [doc]);
+  const resolved = useMemo(() => resolve(doc, { mode: 'resolve' }), [doc]);
+  const paged = useMemo(() => paginate(resolved.doc), [resolved]);
+  const uses = useMemo(() => variableUses(doc), [doc]);
+  const undefinedKeys = useMemo(
+    () => new Set(resolved.diagnostics.filter((d) => d.kind === 'undefined').map((d) => d.key)),
+    [resolved],
+  );
   const pages = useMemo(() => displayPages(paged), [paged]);
 
   // Layout mode: remembered in Preferences; default is side by side when the window is wide.
@@ -168,6 +200,37 @@ export function App() {
     if (layout === 'print') printPane.current?.querySelector<HTMLElement>('.print-view')?.focus();
   }, [layout, current]);
 
+  /** Display page number of an element's first printed line (for "Show uses"). */
+  const pageOf = useCallback(
+    (elementIndex: number) =>
+      elementIndex < 0
+        ? 0 // a title-page value
+        : pages.find((p) => p.lines.some((l) => l.elementIndex === elementIndex))?.number,
+    [pages],
+  );
+  /** Runs a text transform against the editor's current text; returns an error message, if any. */
+  const edit = (make: (text: string) => EditResult): string | null => {
+    const h = editor.current;
+    if (!h) return null;
+    const r = make(h.getText());
+    if ('error' in r) return r.error;
+    h.apply(r.changes);
+    return null;
+  };
+  const jumpToUse = (u: VariableUse) => {
+    const h = editor.current;
+    if (!h) return;
+    if (layoutRef.current === 'print') setLayout('both');
+    // `uses` comes from the debounced text; find the same use in the editor's live text.
+    const nth = uses.filter((x) => x.key === u.key).indexOf(u);
+    const live = variableUses(parse(h.getText())).filter((x) => x.key === u.key)[nth];
+    if (!live) return;
+    h.reveal(live.from, live.to);
+    const line = h.getText().slice(0, live.from).split('\n').length - 1;
+    setCursorLine(line);
+    setPageIndex(pageIndexForLine(doc, paged, line));
+  };
+
   if (!current) {
     return (
       <StartScreen
@@ -194,6 +257,9 @@ export function App() {
           Files
         </button>
         <span class="doc-name">{current.name}</span>
+        <button type="button" aria-pressed={drawerOpen} onClick={() => setDrawerOpen((o) => !o)}>
+          Variables
+        </button>
         <span class="save-status">{STATUS_LABEL[status]}</span>
         <span class="save-status">
           {paged.pageCount} pp · {formatRunningTime(paged.estimatedMinutes)}
@@ -243,6 +309,7 @@ export function App() {
             onChange={onChange}
             onCursorLine={setCursorLine}
             jump={jump}
+            onReady={(h) => (editor.current = h)}
           />
         </section>
         <section
@@ -253,6 +320,7 @@ export function App() {
             paged={paged}
             pages={pages}
             pageIndex={shownPage}
+            undefinedKeys={undefinedKeys}
             onPage={setPageIndex}
             onLine={(el) => {
               const line = sourceLineOf(doc, el);
@@ -266,6 +334,19 @@ export function App() {
             }}
           />
         </section>
+        {drawerOpen && (
+          <VariableDrawer
+            variables={resolved.variables}
+            diagnostics={resolved.diagnostics}
+            uses={uses}
+            pageOf={pageOf}
+            onSetValue={(k, v) => edit((t) => setVariable(t, k, v))}
+            onRename={(k, to) => edit((t) => renameVariable(t, k, to))}
+            onDelete={(k, mode) => void edit((t) => deleteVariable(t, k, mode))}
+            onJump={jumpToUse}
+            onClose={() => setDrawerOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

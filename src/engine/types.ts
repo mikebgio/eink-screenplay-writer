@@ -57,6 +57,11 @@ export interface ScriptElement {
   level?: number;
   /** Character cue extension(s), e.g. `V.O.` or `V.O. CONT'D`. */
   extension?: string;
+  /**
+   * Character cues only: the name without extensions, as written (`{{HERO}}` stays `{{HERO}}` even after
+   * `resolve` substitutes its value), so every use of one variable is the same character.
+   */
+  identity?: string;
   /** Inline notes/boneyard that overlap this element (absolute source offsets). Absent if none. */
   notes?: SourceSpan[];
   /** Emphasis spans over `text`. Absent if none. */
@@ -66,6 +71,10 @@ export interface ScriptElement {
 export interface TitleEntry {
   key: string;
   value: string;
+  /** Source range of the entry's lines and their text (`to` exclusive). Set by `parse`. */
+  from?: number;
+  to?: number;
+  raw?: string;
 }
 
 export interface ScriptDocument {

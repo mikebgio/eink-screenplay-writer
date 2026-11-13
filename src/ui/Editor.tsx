@@ -2,7 +2,18 @@ import { useEffect, useRef } from 'preact/hooks';
 import { EditorState } from '@codemirror/state';
 import { EditorView, drawSelection, keymap } from '@codemirror/view';
 import { elementStyles } from './elementStyles';
+import { variableMarks } from './variableMarks';
+import type { TextChange } from '../engine';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
+
+/** What the rest of the app can do to the editor: variable edits and jumping to a use. */
+export interface EditorHandle {
+  getText(): string;
+  /** Applies all changes as one transaction (one undo step). Offsets refer to the current text. */
+  apply(changes: TextChange[]): void;
+  /** Selects the range, scrolls it into view and focuses the editor. */
+  reveal(from: number, to: number): void;
+}
 
 /**
  * CodeMirror 6 surface over raw Fountain text. No animations, no cursor blink (e-ink).
@@ -15,6 +26,7 @@ export function Editor({
   onChange,
   onCursorLine,
   jump,
+  onReady,
 }: {
   text: string;
   revision: number;
@@ -23,6 +35,7 @@ export function Editor({
   onCursorLine?: (line: number) => void;
   /** Move the cursor to a 0-based source line when `seq` changes. */
   jump?: { line: number; seq: number };
+  onReady?: (handle: EditorHandle) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(undefined);
@@ -40,6 +53,7 @@ export function Editor({
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
     elementStyles,
+    variableMarks,
     EditorView.updateListener.of((u) => {
       if (u.docChanged) {
         onChangeRef.current(u.state.doc.toString());
@@ -61,6 +75,20 @@ export function Editor({
       state: EditorState.create({ doc: latest.current.text, extensions: extensions.current }),
     });
     view.current = v;
+    onReady?.({
+      getText: () => v.state.doc.toString(),
+      apply: (changes) => {
+        if (changes.length > 0) v.dispatch({ changes, userEvent: 'input.variable' });
+      },
+      reveal: (from, to) => {
+        const len = v.state.doc.length;
+        v.dispatch({
+          selection: { anchor: Math.min(from, len), head: Math.min(to, len) },
+          scrollIntoView: true,
+        });
+        v.focus();
+      },
+    });
     return () => v.destroy();
   }, []);
 

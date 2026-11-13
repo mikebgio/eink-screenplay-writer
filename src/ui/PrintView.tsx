@@ -9,9 +9,30 @@ import {
 } from '../engine';
 
 const PX_PER_IN = 96;
+const NO_KEYS: ReadonlySet<string> = new Set();
 
-function renderText(line: PositionedLine): JSX.Element | string {
-  if (!line.styles) return line.text;
+const VAR_TOKEN = /(\{\{[A-Z][A-Z0-9_]*\}\})/;
+
+/** Draws a dashed box around `{{KEY}}` where KEY has no definition, so it never prints as nothing. */
+function markUndefined(text: string, undefinedKeys: ReadonlySet<string>): JSX.Element | string {
+  if (undefinedKeys.size === 0 || !text.includes('{{')) return text;
+  return (
+    <>
+      {text.split(VAR_TOKEN).map((part, i) =>
+        i % 2 === 1 && undefinedKeys.has(part.slice(2, -2)) ? (
+          <span key={i} class="print-var-undefined">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+function renderText(line: PositionedLine, undefinedKeys: ReadonlySet<string>): JSX.Element | string {
+  if (!line.styles) return markUndefined(line.text, undefinedKeys);
   // Cut the line at every style boundary and apply the styles that cover each piece.
   const cuts = new Set([0, line.text.length]);
   for (const s of line.styles) {
@@ -31,7 +52,7 @@ function renderText(line: PositionedLine): JSX.Element | string {
         };
         return (
           <span key={i} style={style}>
-            {line.text.slice(from, to)}
+            {markUndefined(line.text.slice(from, to), undefinedKeys)}
           </span>
         );
       })}
@@ -50,6 +71,7 @@ export function PrintView({
   pageIndex,
   onPage,
   onLine,
+  undefinedKeys = NO_KEYS,
 }: {
   paged: PagedScript;
   /** Pages in reading order (title page first when present). */
@@ -58,6 +80,8 @@ export function PrintView({
   onPage: (index: number) => void;
   /** Called with the element index of the tapped line. */
   onLine: (elementIndex: number) => void;
+  /** Variable keys with no definition; their `{{KEY}}` is drawn with a dashed box. */
+  undefinedKeys?: ReadonlySet<string>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -139,7 +163,7 @@ export function PrintView({
                   top: `${topMarginIn + line.yLine / LINES_PER_INCH}in`,
                 }}
               >
-                {renderText(line)}
+                {renderText(line, undefinedKeys)}
               </div>
             ))}
           </div>

@@ -1,7 +1,7 @@
 ---
 id: 07
 title: Variable Drawer
-status: todo
+status: needs-device
 blocked_by: [04, 05]
 model: sonnet
 ---
@@ -52,7 +52,7 @@ The writer's signature feature. A drawer lists key → value pairs. Writing `{{K
 
 ## Acceptance criteria
 
-- [ ] Engine tests through `parse` + `resolve` + `paginate`:
+- [x] Engine tests through `parse` + `resolve` + `paginate`:
   - substitution in action, dialogue and scene headings
   - an uppercase value in a cue
   - cue identity stays stable when the value changes
@@ -61,12 +61,12 @@ The writer's signature feature. A drawer lists key → value pairs. Writing `{{K
   - undefined and unused keys appear in diagnostics
   - `keep` mode leaves `{{KEY}}` in place
   - a longer value changes line wrapping and page breaks (golden test)
-- [ ] Title-page round trip: drawer edits produce the expected file text (tested on the text-transform functions, not on the UI).
+- [x] Title-page round trip: drawer edits produce the expected file text (tested on the text-transform functions, not on the UI).
 - [ ] Rename updates the definition and every use; a single undo restores everything (tested on the transform; checked by hand in the UI).
 - [ ] Delete-with-uses offers both options and each behaves correctly.
 - [ ] The drawer shows usage counts; Show uses jumps to the right place.
 - [ ] Undefined keys are visibly marked in the editor and print view.
-- [ ] The `.fountain` file saved after using the drawer opens in a plain text editor with readable `Var-` lines.
+- [x] The `.fountain` file saved after using the drawer opens in a plain text editor with readable `Var-` lines.
 - [ ] (device) A value change shows on the Boox print view in under about 0.5 s.
 
 ## Out of scope
@@ -75,4 +75,22 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 
 ## Handoff notes
 
-_(Fill in: what Beat does with `Var-` keys; the final resolve API.)_
+**Status:** the engine and text-transform criteria are tested and ticked. The UI criteria (rename single undo, delete options, drawer counts and Show uses, undefined marks in the editor and print view) are built but **not verified**: nobody has run the UI, so they stay unticked and are listed under Owner checks. Ticket 05 is merged and the print-view parts are built.
+
+**Final resolve API** (`src/engine/variables.ts`, exported from `src/engine`):
+
+- `resolve(doc, { mode: 'resolve' | 'keep' }) → { doc, variables, diagnostics }`. `doc` has the same element order, so `elementIndex` still lines up with the parsed document. Undefined keys stay as `{{KEY}}` text; the print view should draw a dashed box (`.print-var-undefined` is already in `styles.css`) around any `{{KEY}}` whose key is in `diagnostics` with `kind: 'undefined'`. `Var-` entries are dropped from `doc.titlePage`; values are substituted into other title-page values.
+- `diagnostics: { key, kind: 'undefined' | 'unused' | 'invalid', positions: {from,to}[] }[]` (source offsets; empty for `unused`; for `invalid`, `key` is the text between the braces).
+- Also: `getVariables(doc)`, `variableUses(doc)` (key, from, to, elementIndex, excerpt, inCue; skips notes/boneyard), `listVariableKeys(doc)` for ticket 08, `scanTokens(text)`.
+- Character cues get `identity` from `parse` (the name without extensions, as written; `{{HERO}}` stays `{{HERO}}`). Use it, not `text`, for autocomplete, reports and (CONT'D). `{{HERO}}` was already recognised as a cue (braces and capitals are "uppercase"); no classifier change was needed. `resolve` uppercases only the substituted value in a cue.
+- Edits (`src/engine/variableEdits.ts`) return `{ changes: {from,to,insert}[] } | { error }` in original-text offsets, so the UI dispatches them as one CodeMirror transaction (one undo step): `setVariable`, `renameVariable`, `deleteVariable(text, key, 'inline' | 'undefine')`, plus `applyChanges` for tests. `titlePageLayout(text)` in `parse.ts` gives source ranges of title-page entries.
+- Rules: first `Var-KEY` definition wins; values can't contain line breaks; no title page → one is created with a blank line after it; deleting the only entry removes the title page. Rename and "replace with value" skip `{{KEY}}` inside notes and boneyard, and `\{{KEY}}` is never a use. Re-parse is not skipped on a value change; it relies on ticket 05's performance budget.
+- UI: `Editor` takes `onReady(handle)` (`getText`, `apply`, `reveal`); `VariableDrawer.tsx`; `variableMarks.ts` (editor dashed box for undefined, dotted underline with the "UPPER_CASE" hint for invalid). Ctrl+D toggles the drawer (window capture listener, beating CodeMirror's Ctrl+D).
+
+**Print view (ticket 05 API):** `PrintView` takes `undefinedKeys` (a `Set` of keys from `diagnostics` with `kind: 'undefined'`) and draws `{{KEY}}` with `.print-var-undefined`. An escaped `\{{KEY}}` that prints as `{{KEY}}` of an undefined key is boxed too (known quirk). "Show uses" shows the display page number (`pageOf`) and moves the editor selection, the cursor line and the print page (`App.jumpToUse`); from Print-only layout it switches to Both. Golden tests: `test/fixtures/variables/` → `test/golden/variables/` (`UPDATE_GOLDEN=1` rewrites).
+
+**Owner checks:**
+- Run the app and check: rename is one undo step; Delete with uses offers "Replace" and "Leave undefined" and each works; the drawer shows usage counts; Show uses jumps the editor and print view to the right place; undefined keys show a dashed box in the editor and print view; Ctrl+D toggles the drawer (and doesn't fire on the start screen or inside the drawer's inputs).
+- (Mac) Does Beat print or keep unknown `Var-` keys on its title page? Not checked.
+- (device) A value change shows on the Boox print view in under about 0.5 s.
+- The drawer UI was not exercised in a browser here (the `@capacitor/*` modules are missing in this worktree, so the app won't build); only the engine and text transforms are tested. Check Ctrl+D, rename and delete by hand.
