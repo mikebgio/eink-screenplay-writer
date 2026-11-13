@@ -59,7 +59,7 @@ function splitLines(text: string): Line[] {
 }
 
 /** Boneyard first (it hides everything inside it), then notes, which may not contain a blank line. */
-function findSpans(text: string): SourceSpan[] {
+export function findSpans(text: string): SourceSpan[] {
   if (!text.includes('/*') && !text.includes('[[')) return [];
   const spans: SourceSpan[] = [];
   let masked = text;
@@ -110,7 +110,9 @@ function parseTitlePage(
     ranges.push([i, i]);
   }
   // "CUT TO:" on its own is a transition, not a title page.
-  if (entries.length === 1 && entries[0]!.value === '') return null;
+  // A lone empty `Var-KEY:` is still a title page, so clearing the only variable's value keeps it.
+  if (entries.length === 1 && entries[0]!.value === '' && !entries[0]!.key.startsWith('Var-'))
+    return null;
   return { entries, end: i, ranges };
 }
 
@@ -233,6 +235,11 @@ export function analyze(text: string): Analysis {
 
   // --- title page ---
   const title = parseTitlePage(lines);
+  title?.entries.forEach((e, k) => {
+    e.from = lines[title.ranges[k]![0]]!.start;
+    e.to = lines[title.ranges[k]![1]]!.end;
+    e.raw = text.slice(e.from, e.to);
+  });
   const bodyStart = title ? title.end : 0;
   for (let i = 0; i < bodyStart; i++) lineClasses[i] = 'title-page';
 

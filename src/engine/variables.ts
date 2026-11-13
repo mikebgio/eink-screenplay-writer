@@ -79,27 +79,52 @@ export function getVariables(doc: ScriptDocument): TitleEntry[] {
 
 const SKIP_USES = new Set(['note', 'boneyard', 'page-break']);
 
-/** Every valid `{{KEY}}` use in the printed body, with source positions. Notes and boneyard are skipped. */
-export function variableUses(doc: ScriptDocument): VariableUse[] {
-  const out: VariableUse[] = [];
+interface Found extends Token {
+  /** Absolute source offsets. */
+  absFrom: number;
+  absTo: number;
+  /** Element index; -1 for a title-page entry. */
+  elementIndex: number;
+  raw: string;
+  inCue: boolean;
+}
+
+/**
+ * Every `{{...}}` token the printed script can contain: element text (minus notes and boneyard) and
+ * title-page values, but not the `Var-` definitions themselves.
+ */
+function findTokens(doc: ScriptDocument): Found[] {
+  const out: Found[] = [];
+  for (const e of doc.titlePage) {
+    if (e.raw === undefined || e.from === undefined || e.key.startsWith(VAR_PREFIX)) continue;
+    for (const t of scanTokens(e.raw)) {
+      out.push({ ...t, absFrom: e.from + t.from, absTo: e.from + t.to, elementIndex: -1, raw: e.raw, inCue: false });
+    }
+  }
   doc.elements.forEach((el, elementIndex) => {
     if (SKIP_USES.has(el.type)) return;
     for (const t of scanTokens(el.raw)) {
-      if (t.kind !== 'use') continue;
-      const from = el.from + t.from;
-      const to = el.from + t.to;
-      if (el.notes?.some((n) => from < n.to && to > n.from)) continue;
-      out.push({
-        key: t.key,
-        from,
-        to,
-        elementIndex,
-        excerpt: excerptAround(el.raw, t.from, t.to),
-        inCue: el.type === 'character',
-      });
+      const absFrom = el.from + t.from;
+      const absTo = el.from + t.to;
+      if (el.notes?.some((n) => absFrom < n.to && absTo > n.from)) continue;
+      out.push({ ...t, absFrom, absTo, elementIndex, raw: el.raw, inCue: el.type === 'character' });
     }
   });
   return out;
+}
+
+/** Every valid `{{KEY}}` use in the script (title-page values included), with source positions. */
+export function variableUses(doc: ScriptDocument): VariableUse[] {
+  return findTokens(doc)
+    .filter((t) => t.kind === 'use')
+    .map((t) => ({
+      key: t.key,
+      from: t.absFrom,
+      to: t.absTo,
+      elementIndex: t.elementIndex,
+      excerpt: excerptAround(t.raw, t.from, t.to),
+      inCue: t.inCue,
+    }));
 }
 
 function excerptAround(raw: string, from: number, to: number): string {
@@ -152,7 +177,7 @@ function substitute(
     let shift = 0;
     for (const s of segs) {
       if (s.to <= o) shift = s.newTo - s.to;
-      else if (s.from < o) return o <= s.from ? s.newFrom : s.newTo;
+      else if (s.from < o) return s.newTo;
       else break;
     }
     return o + shift;
@@ -215,15 +240,12 @@ export function resolve(
     }
   }
   const invalid = new Map<string, SourceRange[]>();
-  doc.elements.forEach((el) => {
-    if (SKIP_USES.has(el.type)) return;
-    for (const t of scanTokens(el.raw)) {
-      if (t.kind !== 'invalid') continue;
-      const list = invalid.get(t.key) ?? [];
-      list.push({ from: el.from + t.from, to: el.from + t.to });
-      invalid.set(t.key, list);
-    }
-  });
+  for (const t of findTokens(doc)) {
+    if (t.kind !== 'invalid') continue;
+    const list = invalid.get(t.key) ?? [];
+    list.push({ from: t.absFrom, to: t.absTo });
+    invalid.set(t.key, list);
+  }
 
   const diagnostics: VariableDiagnostic[] = [
     ...[...undefinedKeys].map(([key, positions]): VariableDiagnostic => ({ key, kind: 'undefined', positions })),

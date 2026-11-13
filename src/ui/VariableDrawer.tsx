@@ -32,12 +32,20 @@ function ValueField({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const commit = useRef(onCommit);
   commit.current = onCommit;
+  const pending = useRef<string | null>(null);
 
   // Follow changes made elsewhere (undo, typing in the editor), unless the writer is typing here.
   useEffect(() => {
     if (document.activeElement !== input.current) setDraft(value);
   }, [value]);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // Closing the drawer inside the debounce must not drop the last edit: flush it on unmount.
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      if (pending.current !== null) commit.current(pending.current);
+    },
+    [],
+  );
 
   return (
     <>
@@ -50,7 +58,11 @@ function ValueField({
           const v = e.currentTarget.value;
           setDraft(v);
           clearTimeout(timer.current);
-          timer.current = setTimeout(() => setError(commit.current(v) ?? null), VALUE_DEBOUNCE_MS);
+          pending.current = v;
+          timer.current = setTimeout(() => {
+            pending.current = null;
+            setError(commit.current(v) ?? null);
+          }, VALUE_DEBOUNCE_MS);
         }}
       />
       {error && <div class="var-error" role="alert">{error}</div>}
@@ -197,8 +209,10 @@ function AddRow({
 export function VariableDrawer(props: DrawerProps) {
   const [adding, setAdding] = useState<string | null>(null);
   const undef = props.diagnostics.filter((d) => d.kind === 'undefined');
-  const add = (key: string, value: string): DrawerResult =>
-    value.trim() === '' ? 'Enter a value' : props.onSetValue(key, value);
+  const add = (key: string, value: string): DrawerResult => {
+    if (props.variables.some((v) => v.key === key)) return `${key} already exists`;
+    return value.trim() === '' ? 'Enter a value' : props.onSetValue(key, value);
+  };
   return (
     <aside class="drawer" aria-label="Variables">
       <div class="drawer-head">

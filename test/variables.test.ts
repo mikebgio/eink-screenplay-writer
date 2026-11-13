@@ -210,3 +210,59 @@ describe('variables in pagination (golden)', () => {
     expect(long.match(/=== PAGE/g)!.length).toBeGreaterThan(short.match(/=== PAGE/g)!.length);
   });
 });
+
+describe('edge cases', () => {
+  const run = (text: string, r: EditResult) => applyChanges(text, changes(r));
+
+  it('clearing the only variable keeps its title page and definition', () => {
+    const t = 'Var-HERO: Jack\n\nHi {{HERO}}.';
+    const cleared = run(t, setVariable(t, 'HERO', ''));
+    expect(cleared).toBe('Var-HERO:\n\nHi {{HERO}}.');
+    expect(resolve(parse(cleared)).variables).toEqual([{ key: 'HERO', value: '' }]);
+    const again = run(cleared, setVariable(cleared, 'HERO', 'Ann'));
+    expect(again).toBe('Var-HERO: Ann\n\nHi {{HERO}}.');
+  });
+
+  it('a lone CUT TO: is still not a title page', () => {
+    expect(parse('CUT TO:').titlePage).toEqual([]);
+  });
+
+  it('counts, renames and replaces uses in title-page values', () => {
+    const t = "Title: {{HERO}}'s Story\nVar-HERO: Jack\n\nHi {{HERO}}.";
+    const uses = variableUses(parse(t));
+    expect(uses.map((u) => [u.key, u.elementIndex])).toEqual([
+      ['HERO', -1],
+      ['HERO', 0],
+    ]);
+    expect(resolve(parse(t)).diagnostics.some((d) => d.kind === 'unused')).toBe(false);
+    expect(run(t, renameVariable(t, 'HERO', 'LEAD'))).toBe(
+      "Title: {{LEAD}}'s Story\nVar-LEAD: Jack\n\nHi {{LEAD}}.",
+    );
+    expect(run(t, deleteVariable(t, 'HERO', 'inline'))).toBe("Title: Jack's Story\n\nHi Jack.");
+    const u = resolve(parse("Title: {{NOPE}}\nAuthor: me\n\nHi.")).diagnostics;
+    expect(u).toContainEqual(expect.objectContaining({ key: 'NOPE', kind: 'undefined' }));
+  });
+
+  it('ignores {{KEY}} and {{bad}} inside notes', () => {
+    const t = 'Var-A: 1\n\nHi [[{{A}} {{bad}} {{B}}]] there.';
+    expect(variableUses(parse(t))).toEqual([]);
+    expect(resolve(parse(t)).diagnostics.map((d) => d.kind)).toEqual(['unused']);
+  });
+
+  it('handles CRLF text', () => {
+    const t = 'Title: T\r\nVar-A: 1\r\n\r\nHi {{A}}.';
+    const added = run(t, setVariable(t, 'B', '2'));
+    expect(added).toBe('Title: T\r\nVar-A: 1\r\nVar-B: 2\r\n\r\nHi {{A}}.');
+    expect(run(added, deleteVariable(added, 'B', 'undefine'))).toBe(t);
+    const none = run('Hi.', setVariable('Hi.', 'A', 'x'));
+    expect(none).toBe('Var-A: x\n\nHi.');
+    expect(run('Hi.\r\nYo.', setVariable('Hi.\r\nYo.', 'A', 'x'))).toBe('Var-A: x\r\n\r\nHi.\r\nYo.');
+  });
+
+  it('deletes the first of several entries', () => {
+    const out = run(SCRIPT, deleteVariable(SCRIPT, 'HERO', 'undefine'));
+    expect(out.split('\n').slice(0, 3)).toEqual(['Title: The Long Night', 'Var-TOWN: Port Avalon', '']);
+    const first = 'Var-A: 1\nVar-B: 2\n\nHi.';
+    expect(run(first, deleteVariable(first, 'A', 'undefine'))).toBe('Var-B: 2\n\nHi.');
+  });
+});

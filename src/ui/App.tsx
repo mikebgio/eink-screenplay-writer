@@ -52,6 +52,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editor = useRef<EditorHandle>(undefined);
+  const hasDoc = useRef(false);
+  hasDoc.current = current !== null;
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => void recent.list().then(setRecents), [recent]);
@@ -61,6 +63,8 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        // Only with a document open, and not while typing in the drawer (Ctrl+D is delete-forward there).
+        if (!hasDoc.current || (e.target as HTMLElement | null)?.closest?.('.drawer')) return;
         e.preventDefault();
         e.stopPropagation();
         setDrawerOpen((o) => !o);
@@ -199,7 +203,9 @@ export function App() {
   /** Display page number of an element's first printed line (for "Show uses"). */
   const pageOf = useCallback(
     (elementIndex: number) =>
-      pages.find((p) => p.lines.some((l) => l.elementIndex === elementIndex))?.number,
+      elementIndex < 0
+        ? 0 // a title-page value
+        : pages.find((p) => p.lines.some((l) => l.elementIndex === elementIndex))?.number,
     [pages],
   );
   /** Runs a text transform against the editor's current text; returns an error message, if any. */
@@ -215,8 +221,12 @@ export function App() {
     const h = editor.current;
     if (!h) return;
     if (layoutRef.current === 'print') setLayout('both');
-    h.reveal(u.from, u.to);
-    const line = h.getText().slice(0, u.from).split('\n').length - 1;
+    // `uses` comes from the debounced text; find the same use in the editor's live text.
+    const nth = uses.filter((x) => x.key === u.key).indexOf(u);
+    const live = variableUses(parse(h.getText())).filter((x) => x.key === u.key)[nth];
+    if (!live) return;
+    h.reveal(live.from, live.to);
+    const line = h.getText().slice(0, live.from).split('\n').length - 1;
     setCursorLine(line);
     setPageIndex(pageIndexForLine(doc, paged, line));
   };

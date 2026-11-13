@@ -71,6 +71,10 @@ export interface ScriptElement {
 export interface TitleEntry {
   key: string;
   value: string;
+  /** Source range of the entry's lines and their text (`to` exclusive). Set by `parse`. */
+  from?: number;
+  to?: number;
+  raw?: string;
 }
 
 export interface ScriptDocument {

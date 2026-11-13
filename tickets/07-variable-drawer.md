@@ -62,10 +62,10 @@ The writer's signature feature. A drawer lists key → value pairs. Writing `{{K
   - `keep` mode leaves `{{KEY}}` in place
   - a longer value changes line wrapping and page breaks (golden test)
 - [x] Title-page round trip: drawer edits produce the expected file text (tested on the text-transform functions, not on the UI).
-- [x] Rename updates the definition and every use; a single undo restores everything (tested on the transform; checked by hand in the UI).
-- [x] Delete-with-uses offers both options and each behaves correctly.
-- [x] The drawer shows usage counts; Show uses jumps to the right place.
-- [x] Undefined keys are visibly marked in the editor and print view.
+- [ ] Rename updates the definition and every use; a single undo restores everything (tested on the transform; checked by hand in the UI).
+- [ ] Delete-with-uses offers both options and each behaves correctly.
+- [ ] The drawer shows usage counts; Show uses jumps to the right place.
+- [ ] Undefined keys are visibly marked in the editor and print view.
 - [x] The `.fountain` file saved after using the drawer opens in a plain text editor with readable `Var-` lines.
 - [ ] (device) A value change shows on the Boox print view in under about 0.5 s.
 
@@ -75,7 +75,7 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 
 ## Handoff notes
 
-**Status:** every criterion except the (device) one is met; ticket 05 is merged and the print-view parts are done.
+**Status:** the engine and text-transform criteria are tested and ticked. The UI criteria (rename single undo, delete options, drawer counts and Show uses, undefined marks in the editor and print view) are built but **not verified**: nobody has run the UI, so they stay unticked and are listed under Owner checks. Ticket 05 is merged and the print-view parts are built.
 
 **Final resolve API** (`src/engine/variables.ts`, exported from `src/engine`):
 
@@ -90,6 +90,7 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 **Print view (ticket 05 API):** `PrintView` takes `undefinedKeys` (a `Set` of keys from `diagnostics` with `kind: 'undefined'`) and draws `{{KEY}}` with `.print-var-undefined`. An escaped `\{{KEY}}` that prints as `{{KEY}}` of an undefined key is boxed too (known quirk). "Show uses" shows the display page number (`pageOf`) and moves the editor selection, the cursor line and the print page (`App.jumpToUse`); from Print-only layout it switches to Both. Golden tests: `test/fixtures/variables/` → `test/golden/variables/` (`UPDATE_GOLDEN=1` rewrites).
 
 **Owner checks:**
+- Run the app and check: rename is one undo step; Delete with uses offers "Replace" and "Leave undefined" and each works; the drawer shows usage counts; Show uses jumps the editor and print view to the right place; undefined keys show a dashed box in the editor and print view; Ctrl+D toggles the drawer (and doesn't fire on the start screen or inside the drawer's inputs).
 - (Mac) Does Beat print or keep unknown `Var-` keys on its title page? Not checked.
 - (device) A value change shows on the Boox print view in under about 0.5 s.
 - The drawer UI was not exercised in a browser here (the `@capacitor/*` modules are missing in this worktree, so the app won't build); only the engine and text transforms are tested. Check Ctrl+D, rename and delete by hand.

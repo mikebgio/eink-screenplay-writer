@@ -81,7 +81,11 @@ export function Editor({
         if (changes.length > 0) v.dispatch({ changes, userEvent: 'input.variable' });
       },
       reveal: (from, to) => {
-        v.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true });
+        const len = v.state.doc.length;
+        v.dispatch({
+          selection: { anchor: Math.min(from, len), head: Math.min(to, len) },
+          scrollIntoView: true,
+        });
         v.focus();
       },
     });
