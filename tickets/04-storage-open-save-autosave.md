@@ -1,7 +1,7 @@
 ---
 id: 04
 title: Open, save, autosave and recovery
-status: todo
+status: needs-device
 blocked_by: [01]
 model: sonnet
 ---
@@ -56,14 +56,14 @@ Real files. The writer can create a new script from a template, open `.fountain`
 
 ## Acceptance criteria
 
-- [ ] `DocumentSession` tests run against `MemoryStorage`:
+- [x] `DocumentSession` tests run against `MemoryStorage`:
   - autosave fires 2 s after the last edit, and not before
   - going to the background saves immediately
   - the journal is written while there are unsaved changes and cleared after saving
   - reopening after a simulated crash offers recovery
   - recovering restores the text; discarding removes the journal
-- [ ] The recent files list stays in order, has no duplicates and is capped at 10 (tested).
-- [ ] A new script from the template parses with a title page and a scene heading.
+- [x] The recent files list stays in order, has no duplicates and is capped at 10 (tested).
+- [x] A new script from the template parses with a title page and a scene heading.
 - [ ] `npm run dev` can open, edit and save a local `.fountain` file in Chrome.
 - [ ] (device) Open, edit and autosave work for a file in local storage on the Boox.
 - [ ] (device) Open, edit and autosave work for a file in Google Drive (needs the Drive app; Google Play must be enabled in the Boox settings). The edit appears on the Mac within a minute.
@@ -75,4 +75,11 @@ Snapshots (11), conflicts (12), export (09/10).
 
 ## Handoff notes
 
-_(Fill in: whether Drive supports folder access; any provider quirks.)_
+- **Drive folder access: not yet checked.** Needs the Boox. Open "Choose workspace folder" and see whether Google Drive is offered in the folder picker; if not, Drive files use single-file mode (`pickOpen`). Record the result here.
+- **Not verified:** "`npm run dev` can open, edit and save in Chrome". The start screen loads without console errors, but the file pickers need a human click. The Kotlin plugin (`DocumentStorePlugin.java`) has not been compiled or run; `npm run apk` is still to do.
+- **Template and parser:** the template test now asserts the parsed title page (ticket 03 landed).
+- **Replacing the document:** `Editor` now takes `text` + `revision`. Bump `revision` to swap in a new document (it resets undo history); typing stays uncontrolled.
+- **Ports and files:** `src/storage/` holds the port, `MemoryStorage`, `DocumentSession`, `JournalStore`, `RecentFiles` and the template (no Capacitor imports). `src/platform/` holds `NativeStorage`, the browser fallbacks (File System Access API, else a localStorage fake folder), the journal on Capacitor Filesystem, and Preferences. The `App` `pause` event is wired through `onBackground`.
+- **For ticket 12:** `DocumentSession.version` is the last version read or written. **For ticket 11:** `storage.sidecar(ref)` returns a store only when `ref.folderUri` is set. Workspace listing sets it; single-file opens don't. The Android sidecar folder is `.scriptwriter` inside the picked folder. The browser File System Access backend returns `null` for sidecars.
+- **Added dependencies:** `@capacitor/app`, `@capacitor/filesystem`, `@capacitor/preferences`, and `androidx.documentfile` on Android. Run `npm run android` (cap sync) before building the APK.
+- **Autosave edge cases:** an edit made while a write is in flight keeps the journal and schedules another save.
