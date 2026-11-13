@@ -5,7 +5,7 @@ E-ink screenplay editor for the Boox Note Air 6C. Edits plain-text Fountain file
 ## Prerequisites
 
 - Node.js LTS and npm
-- JDK 21 (Temurin 21 LTS, supported until at least Dec 2029). The Gradle daemon is pinned to Java 21 by `android/gradle/gradle-daemon-jvm.properties`, so a newer JDK on the machine can't take over the build. Gradle 8.14.3 doesn't support anything newer than Java 24. Move to the next LTS (25) only when Capacitor's Android template supports it. The pin is written by hand (`toolchainVersion=21`). Gradle's `updateDaemonJvm` task would need online JDK download sources, which we deliberately don't configure, so Gradle uses the locally installed JDK 21 and never downloads one.
+- JDK 21 (Temurin 21 LTS). The Gradle daemon is pinned to Java 21 by `android/gradle/gradle-daemon-jvm.properties` and never downloads a JDK, so if Gradle can't find a local JDK 21 the build fails. See [JDK pin](docs/android-dev-setup-macos.md#jdk-pin) for why, and the fix.
 - Android SDK command-line tools, with `ANDROID_HOME` set: `platforms;android-36`, `build-tools;35.0.0`, `platform-tools` (for `adb`)
 
 **Full setup guide:** [docs/android-dev-setup-macos.md](docs/android-dev-setup-macos.md). It covers where each tool comes from, how to check downloads, a setup without Homebrew, Boox USB debugging, and uninstalling. The recommended path, in short:

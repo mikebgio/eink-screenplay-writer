@@ -26,7 +26,7 @@ Studio (about 1.5 GB dmg) is only worth it if you want a GUI SDK manager, layout
 | Gradle heap | `-Xmx1536m` | `android/gradle.properties` |
 
 Findings:
-- **JDK: use 21.** AGP 8.13 needs JDK 17 minimum ([AGP 8.13 notes](https://developer.android.com/build/releases/agp-8-13-0-release-notes)), but Capacitor 8's Android module compiles with Java 21 (local file above), so 17 would fail. JDK 21 also satisfies AGP. That Gradle 8.14.3 runs on JDK 21 was not fetched from Gradle's compatibility matrix: **unverified** (it is widely true; confirm with the first build).
+- **JDK: use 21.** AGP 8.13 needs JDK 17 minimum ([AGP 8.13 notes](https://developer.android.com/build/releases/agp-8-13-0-release-notes)), but Capacitor 8's Android module compiles with Java 21 (local file above), so 17 would fail. JDK 21 also satisfies AGP. That Gradle 8.14.3 runs on JDK 21 was not fetched from Gradle's compatibility matrix: **unverified** (it is widely true; confirm with the first build). The build pins the Gradle daemon to 21; see [JDK pin](#jdk-pin).
 - **SDK components:** `platforms;android-36` (compileSdk), `build-tools` (AGP 8.13 minimum and default is 35.0.0, same release notes), `platform-tools` (adb), and `cmdline-tools;latest` (for sdkmanager). Max API supported by AGP 8.13 is 36.1.
 - **Capacitor 8 docs say** a minimum of Android Studio 2025.2.1, that Studio auto-installs the JDK, and that you need an SDK platform for API 24 or greater ([Capacitor environment setup](https://capacitorjs.com/docs/getting-started/environment-setup)). Those docs mention nothing about command-line-only setups, so the CLI path here is derived from Google's tooling docs, not a Capacitor-endorsed recipe.
 - **Licences:** each installed package needs its licence accepted: `sdkmanager --licenses` ([sdkmanager](https://developer.android.com/tools/sdkmanager)). Gradle may auto-download missing build-tools/platforms once licences are accepted (**unverified** here; installing explicitly avoids relying on it).
@@ -51,8 +51,11 @@ Cask semantics ([Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)): `sha256` i
 
 **JDK sources:**
 - *Temurin pkg direct* vs *Homebrew cask*: identical binary and path; the cask adds a pinned hash and `brew upgrade`. Adoptium's page says the installer puts it in `/Library/Java/JavaVirtualMachines/temurin-<version>.jdk` and requires admin ([adoptium.net/installation/macOS](https://adoptium.net/installation/macOS/)).
-- *Android Studio's JBR*: Google recommends it to run Studio, and for terminal Gradle `JAVA_HOME` decides the JDK ([Java versions in Android builds](https://developer.android.com/build/jdks)). Pointing `JAVA_HOME` at the bundled JBR works in principle, at `/Applications/Android Studio.app/Contents/jbr/Contents/Home` (path **unverified**, check it exists), and the JBR version in current Studio was not confirmed to be 21 (**unverified**). Only an option if you install Studio.
-- *SDKMAN!/mise/asdf*: reasonable for multiple JDKs, but add another tool, shell hooks and their own download chain. Not needed for one JDK. Not researched in depth.
+- *Android Studio's JBR*: Google recommends it to run Studio ([Java versions in Android builds](https://developer.android.com/build/jdks)). In this project `JAVA_HOME` alone no longer decides the build JDK (see [JDK pin](#jdk-pin)): the JBR at `/Applications/Android Studio.app/Contents/jbr/Contents/Home` (path **unverified**, check it exists) must be version 21 (**unverified**) and may need listing in `org.gradle.java.installations.paths`. Only an option if you install Studio.
+- *SDKMAN!/mise/asdf*: reasonable for multiple JDKs, but add another tool, shell hooks and their own download chain. Not needed for one JDK. Not researched in depth. Installs outside the locations Gradle scans may need `org.gradle.java.installations.paths` (see [JDK pin](#jdk-pin)).
+
+<a id="jdk-pin"></a>
+**JDK pin:** `android/gradle/gradle-daemon-jvm.properties` sets `toolchainVersion=21`, so the Gradle daemon runs on a JDK 21 that Gradle finds through its toolchain discovery, whatever newer JDK is on `PATH` or in `JAVA_HOME`. The Gradle version in `android/gradle/wrapper/gradle-wrapper.properties` sets the ceiling (8.14.3 does not run on Java 25+). Move to the next LTS (25) only when Capacitor's Android template ships a Gradle that supports it. The file is written by hand: Gradle's `updateDaemonJvm` task would add JDK download URLs, which we deliberately leave out, so Gradle never downloads a JDK. The cost: if no JDK 21 is found, the build fails ("Cannot find a Java installation matching..."). Fix by installing `temurin@21` (lands in `/Library/Java/JavaVirtualMachines/`, which Gradle scans), or by adding `org.gradle.java.installations.paths=/path/to/jdk-21` to `~/.gradle/gradle.properties` (machine-specific; not in the repo). Exact discovery locations for Gradle 8.14 were not fetched (**unverified**); `./gradlew -p android javaToolchains` lists what Gradle finds.
 
 ## 3. Verifying downloads
 
@@ -115,7 +118,9 @@ yes | sdkmanager --licenses        # or run interactively and read them
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 sdkmanager --list_installed        # expect platform-tools, platforms;android-36, build-tools;35.0.0, cmdline-tools;latest
 adb version
-cd /Users/mgiordano/Repos/Personal/boox && npm run apk
+cd /Users/mgiordano/Repos/Personal/boox
+./android/gradlew -p android javaToolchains   # expect a JDK 21 listed (the daemon pin needs it)
+npm run apk
 ls android/app/build/outputs/apk/debug/app-debug.apk
 ```
 The first `npm run apk` downloads Gradle 8.14.3 and Maven dependencies into `~/.gradle` (slow, large). If Gradle says "SDK location not found", create `android/local.properties` with `sdk.dir=/opt/homebrew/share/android-commandlinetools` (it is machine-specific; keep it git-ignored).
