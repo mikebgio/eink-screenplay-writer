@@ -5,7 +5,7 @@ import { MemoryStorage } from '../src/storage/memory';
 import { addRecent, RecentFiles, type KeyValueStore } from '../src/storage/recent';
 import { DocumentSession } from '../src/storage/session';
 import { newScriptTemplate } from '../src/storage/template';
-import type { FileRef } from '../src/storage/port';
+import { hashText, type FileRef } from '../src/storage/port';
 
 describe('DocumentSession', () => {
   let storage: MemoryStorage;
@@ -158,5 +158,13 @@ describe('new script template', () => {
     const doc = parse(text);
     expect(doc.titlePage.map((t) => t.key)).toEqual(['Title', 'Credit', 'Author', 'Draft date']);
     expect(doc.elements.some((e) => e.type === 'scene-heading')).toBe(true);
+  });
+});
+
+describe('hashText', () => {
+  it('is the SHA-256 hex of the UTF-8 text', async () => {
+    expect(await hashText('abc')).toBe(
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
   });
 });
