@@ -9,6 +9,8 @@ import {
   selectPrunable,
   snapshotDirName,
   snapshotFileName,
+  splitLabel,
+  withLabel,
   type Snapshot,
 } from '../src/storage/snapshots';
 
@@ -128,6 +130,17 @@ describe('SnapshotService', () => {
     const named = (await svc.take('x', 'named', 'x'))!;
     await svc.remove(named);
     expect(await svc.list()).toHaveLength(1);
+  });
+});
+
+describe('snapshot label header', () => {
+  it('does not mistake a script that starts with the marker for a label', () => {
+    const text = '[[snapshot: fake]]\nINT. ROOM';
+    expect(splitLabel(withLabel(text))).toEqual({ text });
+    expect(splitLabel(withLabel(text, 'Real'))).toEqual({ label: 'Real', text });
+  });
+  it('sanitises the sidecar folder name', () => {
+    expect(snapshotDirName('../../x/y.fountain')).not.toMatch(/[/]|\.\./);
   });
 });
 

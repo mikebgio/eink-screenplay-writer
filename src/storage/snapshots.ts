@@ -17,7 +17,11 @@ export interface Snapshot {
 
 /** `.the-long-night.snapshots` for `the-long-night.fountain`. */
 export function snapshotDirName(scriptName: string): string {
-  const base = scriptName.replace(/\.[^./]+$/, '') || scriptName;
+  const base = (scriptName.replace(/\.[^./]+$/, '') || scriptName)
+    .replace(/[^A-Za-z0-9._ -]+/g, '_')
+    .replace(/\.{2,}/g, '_')
+    .replace(/^\./, '_')
+    .slice(0, 100);
   return `.${base}.snapshots`;
 }
 
@@ -54,13 +58,15 @@ const LABEL_RE = /^\[\[snapshot: ([^\]\n]*)\]\]\n/;
 
 /** Prepend the label comment (named snapshots keep their full label here). */
 export function withLabel(text: string, label?: string): string {
-  return label ? `[[snapshot: ${label.replace(/[\]\n]/g, ' ')}]]\n${text}` : text;
+  // A script that itself starts with the marker gets an empty header, so it can't be mistaken for one.
+  if (!label && !text.startsWith('[[snapshot:')) return text;
+  return `[[snapshot: ${(label ?? '').replace(/[\]\n]/g, ' ')}]]\n${text}`;
 }
 
 /** Split a snapshot file into its label (if any) and the script text. */
 export function splitLabel(raw: string): { label?: string; text: string } {
   const m = LABEL_RE.exec(raw);
-  return m ? { label: m[1]!, text: raw.slice(m[0].length) } : { text: raw };
+  return m ? { ...(m[1] ? { label: m[1] } : {}), text: raw.slice(m[0].length) } : { text: raw };
 }
 
 /**

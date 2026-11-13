@@ -185,6 +185,9 @@ public class DocumentStorePlugin extends Plugin {
     private DocumentFile sidecarDir(PluginCall call, boolean create) {
         String folderUri = call.getString("folderUri");
         String dirName = call.getString("dir", SIDECAR_DIR);
+        // Only our own folder names: no separators or traversal.
+        if (!SIDECAR_DIR.equals(dirName) && !dirName.matches("^\\.[A-Za-z0-9._ -]{1,110}\\.snapshots$")) return null;
+        if (dirName.contains("..") || dirName.contains("/")) return null;
         DocumentFile root = folder(folderUri);
         if (root == null) return null;
         DocumentFile d = root.findFile(dirName);
@@ -223,6 +226,7 @@ public class DocumentStorePlugin extends Plugin {
             DocumentFile d = sidecarDir(call, true);
             if (d == null) throw new Exception("No sidecar folder");
             String name = call.getString("name");
+            if (name == null || name.contains("/") || name.startsWith("..")) throw new Exception("Bad name");
             DocumentFile f = d.findFile(name);
             if (f == null) f = d.createFile("text/plain", name);
             if (f == null) throw new Exception("Cannot create " + name);
