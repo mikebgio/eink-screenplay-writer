@@ -41,6 +41,7 @@ export function App() {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const show = useCallback((t: string) => {
+    clearTimeout(timer.current); // a pending preview update belongs to the old document
     setText(t);
     setDebounced(t);
     setRevision((r) => r + 1);
@@ -72,20 +73,28 @@ export function App() {
     [session],
   );
 
-  const newScript = async () => {
+  const guarded = (fn: () => Promise<void>) => async () => {
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const newScript = guarded(async () => {
     const ref = await storage.pickCreate('Untitled.fountain');
     if (!ref) return;
     await storage.write(ref, newScriptTemplate());
     await openRef(ref);
-  };
-  const openFile = async () => {
+  });
+  const openFile = guarded(async () => {
     const ref = await storage.pickOpen();
     if (ref) await openRef(ref);
-  };
-  const chooseFolder = async () => {
+  });
+  const chooseFolder = guarded(async () => {
     const f = await storage.pickFolder();
     if (f) setWorkspace({ uri: f.uri, files: await storage.listFolder(f.uri) });
-  };
+  });
 
   const paged = useMemo(() => paginate(parse(debounced)), [debounced]);
 

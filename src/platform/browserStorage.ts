@@ -7,6 +7,7 @@ interface FsHandle {
 }
 interface FsFileHandle extends FsHandle {
   getFile(): Promise<File>;
+  isSameEntry(other: FsFileHandle): Promise<boolean>;
   createWritable(): Promise<{ write(d: string): Promise<void>; close(): Promise<void> }>;
 }
 interface FsDirHandle extends FsHandle {
@@ -33,8 +34,17 @@ export class FsAccessStorage implements StoragePort {
     return typeof (window as unknown as FsWindow).showOpenFilePicker === 'function';
   }
 
-  private register(h: FsFileHandle, folderUri?: string): FileRef {
-    const uri = `fsa://${++this.n}/${h.name}`;
+  /** Reuse the URI of an already-registered handle for the same file, so recents and the
+   * journal (both keyed by URI) match it when it is opened again. */
+  private async register(h: FsFileHandle, folderUri?: string): Promise<FileRef> {
+    let uri: string | undefined;
+    for (const [u, known] of this.handles) {
+      if (known.name === h.name && (await known.isSameEntry(h))) {
+        uri = u;
+        break;
+      }
+    }
+    uri ??= `fsa://${++this.n}/${h.name}`;
     this.handles.set(uri, h);
     return { uri, name: h.name, ...(folderUri ? { folderUri } : {}) };
   }
@@ -70,7 +80,7 @@ export class FsAccessStorage implements StoragePort {
     const out: FileRef[] = [];
     for await (const h of dir.values()) {
       if (h.kind === 'file' && /\.(fountain|txt)$/i.test(h.name)) {
-        out.push(this.register(h as FsFileHandle, folderUri));
+        out.push(await this.register(h as FsFileHandle, folderUri));
       }
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));

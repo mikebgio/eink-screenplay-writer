@@ -68,7 +68,7 @@ export class DocumentSession {
     }
     this.setStatus('unsaved');
     clearTimeout(this.autosaveTimer);
-    this.autosaveTimer = setTimeout(() => void this.save(), AUTOSAVE_MS);
+    this.scheduleAutosave();
     if (!this.journalTimer) {
       this.journalTimer = setTimeout(() => void this.writeJournal(), JOURNAL_MS);
     }
@@ -80,8 +80,15 @@ export class DocumentSession {
   }
 
   save(): Promise<void> {
-    this.saving = this.saving.then(() => this.doSave());
-    return this.saving;
+    // A failed save must not poison the chain: later saves still run.
+    const next = this.saving.catch(() => {}).then(() => this.doSave());
+    this.saving = next;
+    return next;
+  }
+
+  private scheduleAutosave(): void {
+    clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => void this.save().catch(() => {}), AUTOSAVE_MS);
   }
 
   private async doSave(): Promise<void> {
@@ -90,7 +97,20 @@ export class DocumentSession {
     this.clearTimers();
     const text = this.text;
     this.setStatus('saving');
-    const { version } = await this.o.storage.write(ref, text);
+    let version: string;
+    try {
+      ({ version } = await this.o.storage.write(ref, text));
+    } catch (e) {
+      // Keep the edits unsaved (journal keeps running) and retry on the next autosave.
+      if (this.ref === ref) {
+        this.setStatus('unsaved');
+        this.scheduleAutosave();
+        if (!this.journalTimer) {
+          this.journalTimer = setTimeout(() => void this.writeJournal(), JOURNAL_MS);
+        }
+      }
+      throw e;
+    }
     this.savedText = text;
     this.version = version;
     if (this.text === text) {
@@ -99,7 +119,7 @@ export class DocumentSession {
     } else {
       // Edited while the write was in flight: keep the journal, save again.
       this.setStatus('unsaved');
-      this.autosaveTimer = setTimeout(() => void this.save(), AUTOSAVE_MS);
+      this.scheduleAutosave();
     }
   }
 

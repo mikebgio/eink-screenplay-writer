@@ -17,7 +17,10 @@ export class NativeStorage implements StoragePort {
   }
   async listFolder(folderUri: string): Promise<FileRef[]> {
     const { files } = await DocumentStore.listFolder({ folderUri });
-    return files.map((f) => ({ ...f, folderUri }));
+    return files
+      .filter((f) => /\.(fountain|txt)$/i.test(f.name))
+      .map((f) => ({ ...f, folderUri }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
   async read(ref: FileRef) {
     const { text } = await DocumentStore.read({ uri: ref.uri });
@@ -32,7 +35,8 @@ export class NativeStorage implements StoragePort {
     if (!folderUri) return null;
     return {
       list: async () => (await DocumentStore.sidecarList({ folderUri })).names,
-      read: async (name) => (await DocumentStore.sidecarRead({ folderUri, name })).text,
+      // Java drops a null JSObject value, so a missing file arrives as undefined.
+      read: async (name) => (await DocumentStore.sidecarRead({ folderUri, name })).text ?? null,
       write: (name, text) => DocumentStore.sidecarWrite({ folderUri, name, text }),
       remove: (name) => DocumentStore.sidecarRemove({ folderUri, name }),
     };

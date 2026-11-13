@@ -36,6 +36,19 @@ describe('DocumentSession', () => {
     expect(storage.writeCount).toBe(1);
   });
 
+  it('recovers from a failed write: stays unsaved, then later saves still run', async () => {
+    const write = storage.write.bind(storage);
+    vi.spyOn(storage, 'write')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(write);
+    session.edit('one');
+    await expect(session.save()).rejects.toThrow('offline');
+    expect(session.status).toBe('unsaved');
+    await session.save();
+    expect(storage.files.get(ref.uri)).toBe('one');
+    expect(session.status).toBe('saved');
+  });
+
   it('saves immediately when the app goes to the background', async () => {
     session.edit('bg');
     await session.onBackground();
