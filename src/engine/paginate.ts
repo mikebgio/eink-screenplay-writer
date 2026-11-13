@@ -9,6 +9,7 @@ import type {
   ScriptElement,
   StyleSpan,
 } from './types';
+import { extractEmphasis } from './parse';
 
 /** Courier at 12pt is 10 characters per inch and 6 lines per inch. */
 export const CHARS_PER_INCH = 10;
@@ -164,19 +165,21 @@ const TITLE_KEYS: Record<string, LineKind> = {
 
 /** Title page (page 0): title a third of the way down, draft date and contact at the bottom left. */
 function titlePage(doc: ScriptDocument, spec: PageSpec): Page | undefined {
-  const entries = new Map<LineKind, string>();
+  // Title values may carry Fountain emphasis (e.g. `_**BRICK & STEEL**_`): print it, not the markers.
+  const entries = new Map<LineKind, { text: string; styles: StyleSpan[] }>();
   for (const e of doc.titlePage) {
     const kind = TITLE_KEYS[e.key.trim().toLowerCase()];
-    if (kind && e.value.trim() && !entries.has(kind)) entries.set(kind, e.value);
+    if (kind && e.value.trim() && !entries.has(kind)) entries.set(kind, extractEmphasis(e.value));
   }
   if (entries.size === 0) return undefined;
   const lines: PositionedLine[] = [];
   const place = (kind: LineKind, row: number, left: boolean): number => {
     const value = entries.get(kind);
     if (value === undefined) return row;
-    for (const w of wrapWords(value, ACTION.width)) {
+    const styles = value.styles.length ? value.styles : undefined;
+    for (const w of wrapWords(value.text, ACTION.width)) {
       const x = left ? ACTION.x : CENTER_IN - w.text.length / (2 * CHARS_PER_INCH);
-      lines.push(makeLine(w, kind, x, row++, -1));
+      lines.push(makeLine(w, kind, x, row++, -1, styles));
     }
     return row;
   };
@@ -188,7 +191,7 @@ function titlePage(doc: ScriptDocument, spec: PageSpec): Page | undefined {
   }
   // The bottom block is laid out first to measure it, then anchored to the last body row.
   const bottom: LineKind[] = (['draft-date', 'contact'] as const).filter((k) => entries.has(k));
-  const heights = bottom.map((k) => wrapWords(entries.get(k)!, ACTION.width).length);
+  const heights = bottom.map((k) => wrapWords(entries.get(k)!.text, ACTION.width).length);
   let r = spec.bodyLines - (heights.reduce((a, b) => a + b, 0) + Math.max(0, bottom.length - 1));
   for (const kind of bottom) r = place(kind, r, true) + 1;
   return { number: 0, lines };

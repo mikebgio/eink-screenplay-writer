@@ -1,3 +1,4 @@
+import { displayPages } from './locate';
 import { CHARS_PER_INCH } from './paginate';
 import type { Page, PagedScript } from './types';
 
@@ -24,6 +25,5 @@ export function renderPageText(page: Page): string {
 
 /** Every page (title page first, if any) rendered with `renderPageText`, ending with a newline. */
 export function renderPagedText(paged: PagedScript): string {
-  const all = paged.titlePage ? [paged.titlePage, ...paged.pages] : paged.pages;
-  return all.map(renderPageText).join('\n') + '\n';
+  return displayPages(paged).map(renderPageText).join('\n') + '\n';
 }

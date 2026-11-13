@@ -70,6 +70,7 @@ export function Editor({
     const v = view.current;
     if (!v || seen.current === revision) return;
     seen.current = revision;
+    lastLine.current = 0; // the new state's cursor is on the first line
     v.setState(EditorState.create({ doc: latest.current.text, extensions: extensions.current }));
   }, [revision]);
 

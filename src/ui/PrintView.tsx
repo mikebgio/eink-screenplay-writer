@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { formatRunningTime, type Page, type PagedScript, type PositionedLine } from '../engine';
-import { LINES_PER_INCH } from '../engine/paginate';
+import {
+  formatRunningTime,
+  LINES_PER_INCH,
+  type Page,
+  type PagedScript,
+  type PositionedLine,
+} from '../engine';
 
 const PX_PER_IN = 96;
 
@@ -65,12 +70,19 @@ export function PrintView({
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const update = () => setScale(el.clientWidth > 0 ? el.clientWidth / pageWidthPx : 1);
+    // Fit the whole page in the host: the pane never scrolls, so scaling to width alone would clip
+    // the bottom of the page whenever the pane is shorter than the page's aspect ratio.
+    const update = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w <= 0) return setScale(1);
+      setScale(h > 0 ? Math.min(w / pageWidthPx, h / pageHeightPx) : w / pageWidthPx);
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [pageWidthPx]);
+  }, [pageWidthPx, pageHeightPx]);
 
   const go = (i: number) => onPage(Math.min(Math.max(i, 0), last));
 
@@ -103,33 +115,34 @@ export function PrintView({
         <span>{label}</span>
         <span>{formatRunningTime(paged.estimatedMinutes)}</span>
       </div>
-      <div
-        class="print-host"
-        ref={host}
-        style={{ height: `${pageHeightPx * scale}px` }}
-        onClick={onTap}
-      >
+      <div class="print-host" ref={host}>
         <div
-          class="print-page"
-          style={{
-            width: `${widthIn}in`,
-            height: `${heightIn}in`,
-            transform: `scale(${scale})`,
-          }}
+          class="print-sheet"
+          style={{ width: `${pageWidthPx * scale}px`, height: `${pageHeightPx * scale}px` }}
+          onClick={onTap}
         >
-          {page?.lines.map((line, i) => (
-            <div
-              key={i}
-              class={`print-line print-${line.kind}`}
-              data-el={line.elementIndex}
-              style={{
-                left: `${line.xIn}in`,
-                top: `${topMarginIn + line.yLine / LINES_PER_INCH}in`,
-              }}
-            >
-              {renderText(line)}
-            </div>
-          ))}
+          <div
+            class="print-page"
+            style={{
+              width: `${widthIn}in`,
+              height: `${heightIn}in`,
+              transform: `scale(${scale})`,
+            }}
+          >
+            {page?.lines.map((line, i) => (
+              <div
+                key={i}
+                class={`print-line print-${line.kind}`}
+                data-el={line.elementIndex}
+                style={{
+                  left: `${line.xIn}in`,
+                  top: `${topMarginIn + line.yLine / LINES_PER_INCH}in`,
+                }}
+              >
+                {renderText(line)}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

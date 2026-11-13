@@ -63,7 +63,7 @@ body,
 .pane-editor {
   border-right: 2px solid #000;
 }
-/* One page at a time, never scrolled: the page is scaled to the pane's width. */
+/* One page at a time, never scrolled: the whole page is scaled to fit the pane. */
 .pane-print {
   overflow: hidden;
 }
@@ -72,6 +72,9 @@ body,
 }
 .print-view {
   outline: none;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 .print-status,
 .layout-toggle {
@@ -86,7 +89,7 @@ body,
   color: #fff;
   background: #000;
 }
-.print-host {
+.print-sheet {
   cursor: pointer;
 }
 @media (max-width: 899px) {
@@ -114,11 +117,18 @@ body,
   font-family: inherit;
 }
 
+/* The host takes the space left under the status line and is only measured; the sheet is the page. */
 .print-host {
-  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   overflow: hidden;
-  border: 1px solid #000;
+}
+.print-sheet {
+  position: relative;
+  overflow: hidden;
+  outline: 1px solid #000;
+  outline-offset: -1px;
 }
 .print-page {
   position: absolute;

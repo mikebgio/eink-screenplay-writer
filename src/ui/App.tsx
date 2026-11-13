@@ -145,8 +145,28 @@ export function App() {
     () => pageIndexForLine(doc, paged, cursorLine),
     [doc, paged, cursorLine],
   );
-  useEffect(() => setPageIndex(cursorPage), [cursorPage]);
+  // Set when a tapped line belongs to an element that starts on an earlier page: the cursor goes to
+  // the element's first line, but the print view stays on the page that was tapped.
+  const keepPage = useRef<number | null>(null);
+  useEffect(() => {
+    const keep = keepPage.current === cursorPage;
+    keepPage.current = null;
+    if (!keep) setPageIndex(cursorPage);
+  }, [cursorPage]);
+  // A newly opened document starts with the cursor (and the print view) at its top.
+  useEffect(() => {
+    keepPage.current = null;
+    setCursorLine(0);
+    setPageIndex(0);
+  }, [revision]);
   const shownPage = Math.min(pageIndex, pages.length - 1);
+
+  // Switching to Print only hides the editor, which drops focus; give it to the print view so
+  // PgUp / PgDn / Space work straight away.
+  const printPane = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (layout === 'print') printPane.current?.querySelector<HTMLElement>('.print-view')?.focus();
+  }, [layout, current]);
 
   if (!current) {
     return (
@@ -225,7 +245,10 @@ export function App() {
             jump={jump}
           />
         </section>
-        <section class={`pane pane-print${layout === 'editor' ? ' pane-hidden' : ''}`}>
+        <section
+          ref={printPane}
+          class={`pane pane-print${layout === 'editor' ? ' pane-hidden' : ''}`}
+        >
           <PrintView
             paged={paged}
             pages={pages}
@@ -234,9 +257,12 @@ export function App() {
             onLine={(el) => {
               const line = sourceLineOf(doc, el);
               if (line === undefined) return;
+              const target = pageIndexForLine(doc, paged, line);
+              if (target !== cursorPage && target !== shownPage) keepPage.current = target;
               setCursorLine(line);
               setJump((j) => ({ line, seq: j.seq + 1 }));
-              if (layoutRef.current === 'print') chooseLayout('editor');
+              // Show the editor for this jump without overwriting the saved layout choice.
+              if (layoutRef.current === 'print') setLayout('editor');
             }}
           />
         </section>

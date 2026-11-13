@@ -5,6 +5,21 @@ export function displayPages(paged: PagedScript): Page[] {
   return paged.titlePage ? [paged.titlePage, ...paged.pages] : paged.pages;
 }
 
+/** Element index → display page of its first printed line; built once per PagedScript, not per cursor move. */
+const firstPageCache = new WeakMap<PagedScript, Map<number, number>>();
+function firstPages(paged: PagedScript, pages: Page[], offset: number): Map<number, number> {
+  let firstPage = firstPageCache.get(paged);
+  if (!firstPage) {
+    firstPage = new Map<number, number>();
+    for (let p = offset; p < pages.length; p++) {
+      for (const l of pages[p]!.lines)
+        if (l.elementIndex >= 0 && !firstPage.has(l.elementIndex)) firstPage.set(l.elementIndex, p);
+    }
+    firstPageCache.set(paged, firstPage);
+  }
+  return firstPage;
+}
+
 /**
  * Index into `displayPages(paged)` of the page that shows source line `line` (0-based). Lines in the
  * title page block map to the title page; lines of elements that print nothing (notes, sections) map to
@@ -21,11 +36,7 @@ export function pageIndexForLine(doc: ScriptDocument, paged: PagedScript, line: 
     else break;
   }
   // The page where each printed element's first line lands; walk back to the nearest printed one.
-  const firstPage = new Map<number, number>();
-  for (let p = offset; p < pages.length; p++) {
-    for (const l of pages[p]!.lines)
-      if (l.elementIndex >= 0 && !firstPage.has(l.elementIndex)) firstPage.set(l.elementIndex, p);
-  }
+  const firstPage = firstPages(paged, pages, offset);
   let found = offset;
   for (let i = e; i >= 0; i--) {
     const p = firstPage.get(i);
