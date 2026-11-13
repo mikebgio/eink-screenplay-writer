@@ -1,4 +1,16 @@
-import { hashText, type FileRef, type SidecarStore, type StoragePort } from './port';
+import type { FileRef, SidecarStore, StoragePort } from './port';
+
+/**
+ * Synchronous content hash (FNV-1a, 64-bit as hex). The fake must resolve without real I/O:
+ * crypto.subtle completes on a thread pool, which fake timers can't flush, so tests raced it.
+ */
+export function syncHash(text: string): string {
+  let h = 0xcbf29ce484222325n;
+  for (let i = 0; i < text.length; i++) {
+    h = BigInt.asUintN(64, (h ^ BigInt(text.charCodeAt(i))) * 0x100000001b3n);
+  }
+  return h.toString(16).padStart(16, '0');
+}
 
 /** In-memory StoragePort for tests. Pickers return whatever the test queued up. */
 export class MemoryStorage implements StoragePort {
@@ -43,15 +55,15 @@ export class MemoryStorage implements StoragePort {
         .map((uri) => ({ uri, name: uri.slice(prefix.length), folderUri })),
     );
   }
-  async read(ref: FileRef) {
+  read(ref: FileRef) {
     const text = this.files.get(ref.uri);
-    if (text === undefined) throw new Error(`No such file: ${ref.uri}`);
-    return { text, version: await hashText(text) };
+    if (text === undefined) return Promise.reject(new Error(`No such file: ${ref.uri}`));
+    return Promise.resolve({ text, version: syncHash(text) });
   }
-  async write(ref: FileRef, text: string) {
+  write(ref: FileRef, text: string) {
     this.files.set(ref.uri, text);
     this.writeCount++;
-    return { version: await hashText(text) };
+    return Promise.resolve({ version: syncHash(text) });
   }
   sidecar(ref: FileRef): SidecarStore | null {
     if (!ref.folderUri) return null;
