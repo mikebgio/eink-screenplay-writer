@@ -38,6 +38,12 @@ updates:
       all:
         patterns:
           - "*"
+    # Gradle 9.6+ removed internal APIs that AGP 8.13.0 uses. Hold the wrapper's
+    # major version until AGP is upgraded.
+    ignore:
+      - dependency-name: gradle-wrapper
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: "/"
