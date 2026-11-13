@@ -57,6 +57,10 @@ body,
 .pane-editor {
   border-right: 2px solid #000;
 }
+/* Reserve the scrollbar so the print view's width (which drives its scale) never changes with its height. */
+.pane-print {
+  scrollbar-gutter: stable;
+}
 @media (max-width: 899px) {
   .app {
     flex-direction: column;

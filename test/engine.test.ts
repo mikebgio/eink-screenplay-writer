@@ -39,7 +39,7 @@ describe('parse', () => {
   });
 
   it('parses the sample fixture', () => {
-    const text = readFileSync('test/fixtures/sample.fountain', 'utf8');
+    const text = readFileSync(new URL('./fixtures/sample.fountain', import.meta.url), 'utf8');
     expect(types(text)).toEqual([
       'scene-heading',
       'action',
@@ -87,6 +87,18 @@ describe('paginate', () => {
     expect(paged.pageCount).toBeGreaterThan(1);
     expect(paged.pages[0]!.lines.length).toBeLessThanOrEqual(54);
     expect(paged.pages.map((p) => p.number)).toEqual(paged.pages.map((_, i) => i + 1));
+  });
+
+  it('fills exactly 54 body rows before breaking the page', () => {
+    const block = Array.from({ length: 60 }, (_, i) => `Row ${i}`).join('\n');
+    const paged = paginate(parse(block));
+    expect(paged.pages.map((p) => p.lines.length)).toEqual([54, 6]);
+    expect(paged.pages[0]!.lines.at(-1)!.y).toBeCloseTo(1 + 53 / 6);
+    expect(paged.pages[1]!.lines[0]!.y).toBeCloseTo(1);
+  });
+
+  it('parses an indented scene heading as a heading, not a character cue', () => {
+    expect(types('  INT. HOUSE - DAY\nShe enters.')).toEqual(['scene-heading', 'action']);
   });
 
   it('returns one empty page for an empty document', () => {

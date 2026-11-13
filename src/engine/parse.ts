@@ -25,12 +25,12 @@ export function parse(text: string): ScriptDocument {
     const start = i;
     while (i < lines.length && (lines[i] ?? '').trim() !== '') i++;
     const block = lines.slice(start, i);
-    const first = block[0] ?? '';
+    const first = (block[0] ?? '').trim();
 
     if (isSceneHeading(first)) {
       elements.push({
         type: 'scene-heading',
-        text: first.startsWith('.') ? first.slice(1).trim() : first.trim(),
+        text: first.startsWith('.') ? first.slice(1).trim() : first,
         startLine: start,
         endLine: start,
       });
@@ -42,8 +42,8 @@ export function parse(text: string): ScriptDocument {
           endLine: i - 1,
         });
       }
-    } else if (block.length > 1 && isCharacter(first.trim())) {
-      elements.push({ type: 'character', text: first.trim(), startLine: start, endLine: start });
+    } else if (block.length > 1 && isCharacter(first)) {
+      elements.push({ type: 'character', text: first, startLine: start, endLine: start });
       elements.push({
         type: 'dialogue',
         text: block.slice(1).join('\n'),

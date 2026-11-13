@@ -24,6 +24,7 @@ const LAYOUT: Record<ElementType, Layout> = {
 
 /** Greedy word wrap by character count; over-long words are hard-split. */
 export function wrap(text: string, width: number): string[] {
+  if (!(width >= 1)) throw new RangeError(`wrap width must be >= 1, got ${width}`);
   const out: string[] = [];
   for (const raw of text.split('\n')) {
     let current = '';

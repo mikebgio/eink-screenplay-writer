@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { EditorState } from '@codemirror/state';
-import { EditorView, drawSelection } from '@codemirror/view';
+import { EditorView, drawSelection, keymap } from '@codemirror/view';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
-import { keymap } from '@codemirror/view';
 
 /** CodeMirror 6 surface over raw Fountain text. No animations, no cursor blink (e-ink). */
 export function Editor({

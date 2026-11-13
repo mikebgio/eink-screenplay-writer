@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package dev.personal.boox.screenplay;
 
 import static org.junit.Assert.*;
 
