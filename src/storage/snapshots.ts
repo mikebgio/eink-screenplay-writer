@@ -17,12 +17,14 @@ export interface Snapshot {
 
 /** `.the-long-night.snapshots` for `the-long-night.fountain`. */
 export function snapshotDirName(scriptName: string): string {
-  const base = (scriptName.replace(/\.[^./]+$/, '') || scriptName)
+  const raw = scriptName.replace(/\.[^./]+$/, '') || scriptName;
+  const safe = raw
     .replace(/[^A-Za-z0-9._ -]+/g, '_')
     .replace(/\.{2,}/g, '_')
     .replace(/^\./, '_')
     .slice(0, 100);
-  return `.${base}.snapshots`;
+  // Names that needed changing get a hash of the original, so different scripts never share a folder.
+  return `.${safe}${safe === raw ? '' : `-${syncHash(raw).slice(0, 8)}`}.snapshots`;
 }
 
 export function slugify(label: string): string {

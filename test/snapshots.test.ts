@@ -144,6 +144,13 @@ describe('snapshot label header', () => {
   });
 });
 
+describe('snapshot folder names', () => {
+  it('keeps plain names readable and separates names that sanitise alike', () => {
+    expect(snapshotDirName('a b.fountain')).toBe('.a b.snapshots');
+    expect(snapshotDirName('a?b.fountain')).not.toBe(snapshotDirName('a*b.fountain'));
+  });
+});
+
 describe('snapshot file names', () => {
   it('sort chronologically and round-trip through the parser', () => {
     const times = [
