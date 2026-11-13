@@ -2,7 +2,9 @@ version: 2
 
 # One combined version-update PR per ecosystem per week (the "all" group, which
 # has no applies-to, so it covers version updates only). Security updates keep
-# their own individual PRs, so they are not held behind the group.
+# their own individual PRs, so they are not held behind the group. Caveat: the
+# `ignore` rules below also apply to security updates, so a security fix that
+# only lands in a held major (TypeScript 6.1+/7, Gradle/AGP 9) gets no PR.
 # New releases wait 14 days before Dependabot proposes them (cooldown does not
 # apply to security updates). The "[Chore]" prefix gives titles "[Chore]: ...".
 
