@@ -235,3 +235,86 @@ button {
 .error {
   font-weight: 700;
 }
+
+/* Variables: undefined keys get a dashed box in the editor and print view; no colour (e-ink). */
+.var-undefined,
+.print-var-undefined {
+  outline: 1px dashed #000;
+  outline-offset: 1px;
+}
+.var-invalid {
+  text-decoration: underline dotted;
+}
+
+.drawer {
+  flex: 0 0 340px;
+  min-width: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 8px;
+  border-left: 2px solid #000;
+}
+.drawer h2,
+.drawer h3 {
+  margin: 8px 0;
+  font-size: 1em;
+}
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.var-row {
+  padding: 6px 0;
+  border-bottom: 1px solid #000;
+}
+.var-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.var-key {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+.drawer input {
+  font: inherit;
+  min-height: 44px;
+  min-width: 0;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+}
+.var-count {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  text-align: right;
+}
+.var-menu,
+.var-uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.var-uses {
+  flex-direction: column;
+  align-items: stretch;
+}
+.var-uses button {
+  text-align: left;
+}
+.var-error {
+  font-weight: 700;
+}
+@media (max-width: 899px) {
+  .drawer {
+    flex: 0 0 auto;
+    max-height: 50%;
+    border-left: 0;
+    border-top: 2px solid #000;
+  }
+}

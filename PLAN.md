@@ -50,7 +50,7 @@ flowchart LR
   T04["04 · Open, save, autosave and recovery"]:::needsdevice
   T05["05 · Paged print view with basic page breaks"]:::done
   T06["06 · Industry page-break rules"]:::ready
-  T07["07 · Variable Drawer"]:::ready
+  T07["07 · Variable Drawer"]:::inprogress
   T08["08 · Keyboard-first editing"]:::blocked
   T09["09 · PDF export"]:::blocked
   T10["10 · FDX and Fountain exchange"]:::blocked
@@ -96,7 +96,7 @@ flowchart LR
 | [x] | 04 | [Open, save, autosave and recovery](tickets/04-storage-open-save-autosave.md) | sonnet | 01 | 3/7 | 📱 needs-device |
 | [x] | 05 | [Paged print view with basic page breaks](tickets/05-paged-print-view.md) | sonnet | 03 | 7/7 | ✅ done |
 | [ ] | 06 | [Industry page-break rules](tickets/06-industry-page-break-rules.md) | sonnet | 05 | 0/5 | 🟢 ready |
-| [ ] | 07 | [Variable Drawer](tickets/07-variable-drawer.md) | sonnet | 04, 05 | 0/8 | 🟢 ready |
+| [ ] | 07 | [Variable Drawer](tickets/07-variable-drawer.md) | sonnet | 04, 05 | 5/8 | 🚧 in-progress |
 | [ ] | 08 | [Keyboard-first editing](tickets/08-keyboard-first-editing.md) | sonnet | 03, 07 | 0/6 | ⛔ blocked |
 | [ ] | 09 | [PDF export](tickets/09-pdf-export.md) | sonnet | 04, 06, 07 | 0/6 | ⛔ blocked |
 | [ ] | 10 | [FDX and Fountain exchange](tickets/10-fdx-and-fountain-exchange.md) | sonnet | 03, 04, 07 | 0/6 | ⛔ blocked |

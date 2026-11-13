@@ -36,6 +36,7 @@ interface Draft {
   level?: number;
   dual?: 'left' | 'right';
   extension?: string;
+  identity?: string;
   /** Pre-computed display text (notes and boneyard). */
   fixedText?: string;
 }
@@ -87,9 +88,12 @@ function removeRanges(text: string, line: Line, ranges: [number, number][]): str
   return out + text.slice(pos, line.end);
 }
 
-function parseTitlePage(lines: Line[]): { entries: TitleEntry[]; end: number } | null {
+function parseTitlePage(
+  lines: Line[],
+): { entries: TitleEntry[]; end: number; ranges: [number, number][] } | null {
   if (!TITLE_KEY.test(lines[0]?.text ?? '')) return null;
   const entries: TitleEntry[] = [];
+  const ranges: [number, number][] = [];
   let i = 0;
   for (; i < lines.length && lines[i]!.text.trim() !== ''; i++) {
     const t = lines[i]!.text;
@@ -97,15 +101,17 @@ function parseTitlePage(lines: Line[]): { entries: TitleEntry[]; end: number } |
       const last = entries[entries.length - 1];
       if (!last) return null;
       last.value = last.value === '' ? t.trim() : `${last.value}\n${t.trim()}`;
+      ranges[ranges.length - 1]![1] = i;
       continue;
     }
     const m = TITLE_KEY.exec(t);
     if (!m) return null;
     entries.push({ key: m[1]!.trim(), value: m[2]!.trim() });
+    ranges.push([i, i]);
   }
   // "CUT TO:" on its own is a transition, not a title page.
   if (entries.length === 1 && entries[0]!.value === '') return null;
-  return { entries, end: i };
+  return { entries, end: i, ranges };
 }
 
 interface Cue {
@@ -297,6 +303,7 @@ export function analyze(text: string): Analysis {
       lines: [i],
       parts: [cue.display],
       extension: cue.extension,
+      identity: cue.name,
     };
     if (forced) d.forced = true;
     dualRight = false;
@@ -465,6 +472,7 @@ export function analyze(text: string): Analysis {
     if (d.dual) el.dual = d.dual;
     if (d.level !== undefined) el.level = d.level;
     if (d.extension !== undefined) el.extension = d.extension;
+    if (d.identity !== undefined) el.identity = d.identity;
     while (sp < spans.length && spans[sp]!.to <= from) sp++;
     for (let k = sp; k < spans.length && spans[k]!.from < to; k++) {
       (el.notes ??= []).push(spans[k]!);
@@ -515,4 +523,26 @@ export function parse(text: string): ScriptDocument {
 /** One entry per source line (split on `\n` / `\r\n`), using the same logic as `parse`. */
 export function classifyLines(text: string): LineClass[] {
   return analyze(text).lines;
+}
+
+/** Where each title-page entry sits in the source; used to edit the title page in place. */
+export interface TitlePageLayout {
+  entries: { key: string; value: string; from: number; to: number }[];
+  /** Offset just after the last entry (before its line break). */
+  end: number;
+}
+
+/** Source ranges (`to` exclusive, line break excluded) of every title-page entry, or null if none. */
+export function titlePageLayout(text: string): TitlePageLayout | null {
+  const lines = splitLines(text);
+  const title = parseTitlePage(lines);
+  if (!title) return null;
+  return {
+    entries: title.entries.map((e, k) => ({
+      ...e,
+      from: lines[title.ranges[k]![0]]!.start,
+      to: lines[title.ranges[k]![1]]!.end,
+    })),
+    end: lines[title.end - 1]!.end,
+  };
 }
