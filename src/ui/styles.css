@@ -105,3 +105,53 @@ body,
   position: absolute;
   white-space: pre;
 }
+
+/* Fountain element styling in the editor: monochrome, approximate indents (print view is exact). */
+.editor-host .el-scene-heading {
+  font-weight: 700;
+}
+.editor-host .el-character {
+  padding-left: 12ch;
+  text-transform: uppercase;
+}
+.editor-host .el-dialogue {
+  padding-left: 6ch;
+  padding-right: 6ch;
+}
+.editor-host .el-parenthetical {
+  padding-left: 9ch;
+  padding-right: 9ch;
+  font-style: italic;
+}
+.editor-host .el-transition {
+  text-align: right;
+}
+.editor-host .el-centered {
+  text-align: center;
+}
+.editor-host .el-lyric {
+  font-style: italic;
+  padding-left: 6ch;
+}
+.editor-host .el-section {
+  font-size: 1.4em;
+  font-weight: 700;
+}
+.editor-host .el-synopsis {
+  font-style: italic;
+  color: #555;
+}
+.editor-host .el-note {
+  color: #555;
+  text-decoration: underline dotted;
+}
+.editor-host .el-boneyard {
+  color: #555;
+  text-decoration: line-through;
+}
+.editor-host .el-page-break {
+  border-top: 2px dashed #000;
+}
+.editor-host .el-title-page {
+  font-weight: 700;
+}

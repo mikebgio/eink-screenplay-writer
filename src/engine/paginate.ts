@@ -15,12 +15,30 @@ interface Layout {
   width: number;
 }
 
-const LAYOUT: Record<ElementType, Layout> = {
-  'scene-heading': { x: 1.5, width: 60 },
-  action: { x: 1.5, width: 60 },
+/** Right edge of the text area, and its centre line, in inches. */
+export const RIGHT_EDGE_IN = 7.5;
+export const CENTER_IN = 4.5;
+
+const ACTION: Layout = { x: 1.5, width: 60 };
+const LAYOUT: Partial<Record<ElementType, Layout>> = {
+  'scene-heading': ACTION,
+  action: ACTION,
+  lyric: ACTION,
+  centered: ACTION,
+  transition: ACTION,
   character: { x: 3.7, width: 35 },
+  parenthetical: { x: 3.1, width: 24 },
   dialogue: { x: 2.5, width: 35 },
 };
+
+/** Never printed: they stay in the document but take no space on the page. */
+const NOT_PRINTED = new Set<ElementType>(['section', 'synopsis', 'note', 'boneyard']);
+
+function lineX(type: ElementType, layout: Layout, text: string): number {
+  if (type === 'transition') return RIGHT_EDGE_IN - text.length / CHARS_PER_INCH;
+  if (type === 'centered') return CENTER_IN - text.length / (2 * CHARS_PER_INCH);
+  return layout.x;
+}
 
 /** Greedy word wrap by character count; over-long words are hard-split. */
 export function wrap(text: string, width: number): string[] {
@@ -51,7 +69,7 @@ export function wrap(text: string, width: number): string[] {
 }
 
 /**
- * Minimal pagination (ticket 01): one blank line between elements, 54 body lines per page,
+ * Basic pagination (tickets 01, 03): one blank line between elements, 54 body lines per page,
  * lines break across pages wherever they fall. Page-break rules arrive in ticket 06.
  */
 export function paginate(doc: ScriptDocument): PagedScript {
@@ -65,17 +83,37 @@ export function paginate(doc: ScriptDocument): PagedScript {
     row = 0;
   };
 
+  // A whole-line note/boneyard splits its block into two elements of the same type; the second
+  // half continues the first on the page, with no blank line between them.
+  let prev: ScriptDocument['elements'][number] | undefined; // last printed element
+  let prevEndLine = -2; // end line of the last element seen, printed or not
+  let spanJoined = false; // only notes/boneyard, with no blank line, since `prev`
+
   doc.elements.forEach((el, elementIndex) => {
-    const layout = LAYOUT[el.type];
+    const adjacent = el.startLine === prevEndLine + 1;
+    prevEndLine = el.endLine;
+    if (el.type === 'note' || el.type === 'boneyard') {
+      spanJoined = (spanJoined || prev?.endLine === el.startLine - 1) && adjacent;
+      return;
+    }
+    const continues = spanJoined && adjacent && prev?.type === el.type;
+    spanJoined = false;
+    if (NOT_PRINTED.has(el.type)) return;
+    if (el.type === 'page-break') {
+      if (row > 0) startNewPage();
+      return;
+    }
+    prev = el;
+    const layout = LAYOUT[el.type] ?? ACTION;
     const lines = wrap(el.text, layout.width);
     // Blank line between elements (not at the top of a page, and a page-ending blank is dropped).
     // wrap() always yields at least one line, so the loop's check handles a blank that ends the page.
-    if (row > 0) row += 1;
+    if (row > 0 && !continues) row += 1;
     for (const text of lines) {
       if (row >= BODY_LINES_PER_PAGE) startNewPage();
       const line: PositionedLine = {
         text,
-        x: layout.x,
+        x: lineX(el.type, layout, text),
         y: TOP_MARGIN_IN + row / LINES_PER_INCH,
         type: el.type,
         elementIndex,

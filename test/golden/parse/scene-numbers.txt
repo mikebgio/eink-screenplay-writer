@@ -1,0 +1,4 @@
+scene-heading [0] | INT. HOUSE - DAY | scene=1
+scene-heading [2] | THE YARD | forced | scene=12A
+scene-heading [4] | EXT. ROAD - NIGHT | scene=I-5
+scene-heading [6] | INT. PLAIN - DAY

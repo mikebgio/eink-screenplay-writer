@@ -1,0 +1,2 @@
+# Fixtures keep their exact bytes (one has CRLF line endings).
+test/fixtures/**/*.fountain -text

@@ -1,0 +1,4 @@
+character [0] | McCLANE | forced
+dialogue [1] | Yippee.
+character [3] | ALICE (O.S.) | forced | ext=O.S.
+dialogue [4] | Who is there?

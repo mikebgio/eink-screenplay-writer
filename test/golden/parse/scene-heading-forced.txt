@@ -1,0 +1,8 @@
+scene-heading [0] | INT. KITCHEN - DAY
+action [2] | Someone stirs a pot.
+scene-heading [4] | EXT. GARDEN - NIGHT
+scene-heading [6] | int./ext. truck - dawn
+scene-heading [8] | I/E CAR - DUSK
+scene-heading [10] | FLASHBACK: THE FARM | forced
+action [12] | A dot-dot line stays action.
+action [14] | ..not a heading

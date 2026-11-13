@@ -1,0 +1,6 @@
+action [0] | Back to the car.
+transition [2] | CUT TO:
+action [4] | Slam.
+transition [6] | FADE OUT. | forced
+character [8] | SMASH TO:
+dialogue [9] | A line right after is not a transition.

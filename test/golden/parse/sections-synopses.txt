@@ -1,0 +1,6 @@
+section [0] | Act One | level=1
+section [2] | Sequence A | level=2
+section [4] | Beat | level=3
+scene-heading [6] | INT. HOUSE - DAY
+synopsis [8] | Our hero arrives and finds trouble.
+action [10] | She knocks.

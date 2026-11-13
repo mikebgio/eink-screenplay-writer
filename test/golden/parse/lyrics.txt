@@ -1,0 +1,2 @@
+lyric [0-1] | Willy Wonka! Willy Wonka!\nThe amazing chocolatier.
+action [3] | After the song.

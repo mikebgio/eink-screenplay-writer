@@ -1,0 +1,4 @@
+centered [0] | THE END
+centered [2] | CENTRED AND SPACED
+action [4] | Before.
+centered [6-7] | two\nlines

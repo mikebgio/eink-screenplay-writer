@@ -1,0 +1,9 @@
+scene-heading [0] | INT. HOUSE - DAY
+action [2] | She pauses and goes on. | spans=note@29-51
+note [4] | A whole-line note.
+character [6] | BOB
+dialogue [7] | Hello there. | spans=note@100-117
+note [8] | note inside dialogue
+dialogue [9] | And then more.
+note [11-12] | A note that\nspans two lines.
+action [14] | End.
