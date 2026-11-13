@@ -67,6 +67,8 @@ export function App() {
   const onChange = useCallback(
     (t: string) => {
       session.edit(t);
+      // Typing replaces the journal, so the recovery offer no longer applies.
+      setRecovery(null);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setDebounced(t), DEBOUNCE_MS);
     },

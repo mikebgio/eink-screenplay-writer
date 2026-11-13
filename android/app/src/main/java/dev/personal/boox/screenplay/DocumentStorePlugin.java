@@ -3,6 +3,7 @@ package dev.personal.boox.screenplay;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.database.Cursor;
 import androidx.activity.result.ActivityResult;
@@ -103,19 +104,34 @@ public class DocumentStorePlugin extends Plugin {
 
     @PluginMethod
     public void listFolder(PluginCall call) {
-        DocumentFile dir = folder(call.getString("folderUri"));
-        if (dir == null) {
+        String folderUri = call.getString("folderUri");
+        if (folderUri == null) {
             call.reject("Cannot open folder");
             return;
         }
+        Uri tree = Uri.parse(folderUri);
+        // One ContentResolver query for the whole listing (listFiles() queries once per file).
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(
+            tree, DocumentsContract.getTreeDocumentId(tree));
+        String[] cols = {
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        };
         JSArray files = new JSArray();
-        for (DocumentFile f : dir.listFiles()) {
-            String name = f.getName();
-            if (!f.isFile() || name == null) continue;
-            JSObject o = new JSObject();
-            o.put("uri", f.getUri().toString());
-            o.put("name", name);
-            files.put(o);
+        try (Cursor c = getContext().getContentResolver().query(children, cols, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                String mime = c.getString(2);
+                String name = c.getString(1);
+                if (name == null || DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) continue;
+                JSObject o = new JSObject();
+                o.put("uri", DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0)).toString());
+                o.put("name", name);
+                files.put(o);
+            }
+        } catch (Exception e) {
+            call.reject("Cannot list folder: " + e.getMessage());
+            return;
         }
         JSObject out = new JSObject();
         out.put("files", files);
