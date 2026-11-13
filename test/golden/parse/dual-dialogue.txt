@@ -1,0 +1,12 @@
+character [0] | BRICK | dual=left
+dialogue [1] | Screw retirement. | dual=left
+character [3] | STEEL | dual=right
+dialogue [4] | Screw everything. | dual=right
+character [6] | AFTER
+dialogue [7] | Not dual.
+character [9] | ANN | dual=left
+dialogue [10] | One. | dual=left
+character [12] | BOB | dual=right
+dialogue [13] | Two. | dual=right
+parenthetical [14] | (beat) | dual=right
+dialogue [15] | Two again. | dual=right

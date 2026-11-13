@@ -1,0 +1,8 @@
+action [0] | Visible one.
+action [2] | Visible two. | spans=boneyard@22-34
+boneyard [4] | Whole line out.
+boneyard [6-10] | A big cut\n\nacross a blank line.
+action [12] | Tail | spans=boneyard@108-137
+boneyard [13] | middle
+action [14] |  text. | spans=boneyard@108-137
+action [16] | Last.

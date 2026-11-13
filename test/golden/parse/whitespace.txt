@@ -1,0 +1,5 @@
+scene-heading [0] | INT. INDENTED - DAY
+action [2] | \tThe tab-indented action.
+character [4] | MARA
+dialogue [5] | Spaced dialogue.
+action [9] | End.

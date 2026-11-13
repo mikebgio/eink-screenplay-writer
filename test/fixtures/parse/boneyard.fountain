@@ -1,0 +1,17 @@
+Visible one.
+
+Visible /* hidden */ two.
+
+/* Whole line out. */
+
+/*
+A big cut
+
+across a blank line.
+*/
+
+Tail /* starts here
+middle
+ends */ text.
+
+Last.

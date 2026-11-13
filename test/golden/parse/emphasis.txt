@@ -1,0 +1,5 @@
+action [0] | She wears italic, bold, both, and underlined clothes. | styles=italic:"italic",bold:"bold",bold:"both",italic:"both",underline:"underlined"
+action [2] | Not a_b_c emphasis, 2 * 3 * 4, escaped *stars*.
+character [4] | BOB
+dialogue [5] | It is really important. | styles=bold:"really"
+action [7] | bold nested italic bold | styles=bold:"bold nested italic bold",italic:"nested italic"

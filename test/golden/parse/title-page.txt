@@ -1,0 +1,9 @@
+TITLE | Title | _BRICK & STEEL_\n**FULL RETIRED**
+TITLE | Credit | Written by
+TITLE | Author | Stu Maschwitz
+TITLE | Source | Story by KTM
+TITLE | Draft date | 1/20/2012
+TITLE | Contact | Next Level Productions\n1588 Mission Dr.
+TITLE | My Custom Key | kept as is
+scene-heading [12] | INT. HOUSE - DAY
+action [14] | First scene.

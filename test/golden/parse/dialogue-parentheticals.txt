@@ -1,0 +1,7 @@
+scene-heading [0] | INT. HOUSE - DAY
+character [2] | MARA
+parenthetical [3] | (quietly)
+dialogue [4] | I know.
+parenthetical [5] | (louder)
+dialogue [6-7] | I KNOW.\nSecond dialogue line.
+action [9] | MARA
