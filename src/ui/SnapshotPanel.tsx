@@ -11,6 +11,9 @@ export function paginateRows(rows: DiffRow[], perPage = DIFF_ROWS_PER_PAGE): Dif
   return pages.length ? pages : [[]];
 }
 
+/** How many of the newest snapshots get a "+n −m" summary. */
+const STATS_FOR = 10;
+
 interface Item extends SnapshotEntry {
   added: number;
   removed: number;
@@ -26,7 +29,8 @@ export interface SnapshotPanelProps {
   onRestore: (s: SnapshotEntry) => Promise<void>;
   onDelete: (s: SnapshotEntry) => Promise<void>;
   onClose: () => void;
-  focusName: boolean;
+  /** Bumped on each Ctrl+Shift+S; 0 = never asked. */
+  focusSeq: number;
 }
 
 function when(t: number): string {
@@ -40,25 +44,37 @@ export function SnapshotPanel(p: SnapshotPanelProps) {
   const [page, setPage] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
+  const focusedSeq = useRef(0);
 
+  // Line-count stats are only computed for the newest few snapshots (each costs a read and a diff).
   useEffect(() => {
     let live = true;
+    const cur = p.getCurrent();
+    setItems(p.entries.map((e) => ({ ...e, added: -1, removed: -1 })));
     void (async () => {
-      const cur = p.getCurrent();
-      const out: Item[] = [];
-      for (const e of p.entries) {
-        const { added, removed } = diffStats(diff(await p.readSnapshot(e), cur));
-        out.push({ ...e, added, removed });
+      for (const [i, e] of p.entries.slice(0, STATS_FOR).entries()) {
+        try {
+          const { added, removed } = diffStats(diff(await p.readSnapshot(e), cur));
+          if (live) setItems((xs) => xs.map((x, k) => (k === i ? { ...x, added, removed } : x)));
+        } catch {
+          /* unreadable snapshot (e.g. removed by sync): leave its stats blank */
+        }
       }
-      if (live) setItems(out);
     })();
     return () => {
       live = false;
     };
   }, [p.entries]);
+  // Ctrl+Shift+S: leave Compare if needed, then focus the name field (once per press).
   useEffect(() => {
-    if (p.focusName) nameInput.current?.focus();
-  }, [p.focusName]);
+    if (p.focusSeq !== focusedSeq.current) setCompare(null);
+  }, [p.focusSeq]);
+  useEffect(() => {
+    if (p.focusSeq !== focusedSeq.current && !compare) {
+      focusedSeq.current = p.focusSeq;
+      nameInput.current?.focus();
+    }
+  }, [p.focusSeq, compare]);
 
   const run = (fn: () => Promise<void>) => async () => {
     try {
@@ -152,9 +168,11 @@ export function SnapshotPanel(p: SnapshotPanelProps) {
             <strong>{when(s.time)}</strong> · {s.kind}
             {s.label ? ` · ${s.label}` : ''}
           </div>
-          <div>
-            vs. current: +{s.added} −{s.removed}
-          </div>
+          {s.added >= 0 && (
+            <div>
+              vs. current: +{s.added} −{s.removed}
+            </div>
+          )}
           <div class="var-menu">
             <button
               type="button"

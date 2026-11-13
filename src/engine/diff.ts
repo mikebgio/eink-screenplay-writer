@@ -31,9 +31,18 @@ export function diff(a: string, b: string): Hunk[] {
   return hunks;
 }
 
+/** Above this many table cells (~16 MB), the changed middle is reported as one remove + one add. */
+const MAX_LCS_CELLS = 4_000_000;
+
 function lcsDiff(x: string[], y: string[]): Hunk[] {
   const n = x.length;
   const m = y.length;
+  if ((n + 1) * (m + 1) > MAX_LCS_CELLS) {
+    return [
+      ...(n ? [{ kind: 'remove' as const, lines: x }] : []),
+      ...(m ? [{ kind: 'add' as const, lines: y }] : []),
+    ];
+  }
   // len[i][j] = LCS length of x[i..] and y[j..]
   const len: Uint32Array[] = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
   for (let i = n - 1; i >= 0; i--) {

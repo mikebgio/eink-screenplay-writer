@@ -36,8 +36,9 @@ export async function hashText(text: string): Promise<string> {
 }
 
 /**
- * Synchronous content hash (FNV-1a, 64-bit as hex). The fake must resolve without real I/O:
- * crypto.subtle completes on a thread pool, which fake timers can't flush, so tests raced it.
+ * Synchronous 64-bit FNV-1a hash as hex. Not collision-resistant: use it only where a clash is
+ * harmless (MemoryStorage versions, disambiguating short folder names), never to decide that two
+ * texts are equal. crypto.subtle can't be flushed by fake timers, so tests need this one.
  */
 export function syncHash(text: string): string {
   let h = 0xcbf29ce484222325n;

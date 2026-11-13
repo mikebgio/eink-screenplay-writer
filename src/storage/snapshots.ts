@@ -17,7 +17,9 @@ export interface Snapshot {
 
 /** `.the-long-night.snapshots` for `the-long-night.fountain`. */
 export function snapshotDirName(scriptName: string): string {
-  const raw = scriptName.replace(/\.[^./]+$/, '') || scriptName;
+  // Only `.fountain` is dropped (`the-long-night.fountain` → `.the-long-night.snapshots`); any other
+  // extension stays, so `draft.txt` and `draft.fountain` never share a folder.
+  const raw = scriptName.replace(/\.fountain$/i, '') || scriptName;
   const safe = raw
     .replace(/[^A-Za-z0-9._ -]+/g, '_')
     .replace(/\.{2,}/g, '_')
@@ -114,7 +116,10 @@ export class SnapshotService {
   deviceOnly = false;
   private ref: FileRef | null = null;
   private store: SidecarStore | null = null;
-  private lastHash: string | null = null;
+  /** Text of the newest snapshot, compared exactly (cheaper and safer than a hash). */
+  private lastText: string | null = null;
+  /** Bumped by every attach/detach so a slow attach can tell it has been superseded. */
+  private generation = 0;
   private timer: ReturnType<typeof setInterval> | undefined;
   private getText: () => string = () => '';
 
@@ -127,23 +132,28 @@ export class SnapshotService {
   /** Start for a newly opened file; takes the on-open auto snapshot and starts the 10-minute timer. */
   async attach(ref: FileRef, text: string, getText: () => string): Promise<void> {
     this.detach();
+    const gen = this.generation;
+    const shared = this.o.storage.sidecar(ref);
+    const store = shared ?? this.o.privateStore(ref.uri);
     this.ref = ref;
     this.getText = getText;
-    const shared = this.o.storage.sidecar(ref);
     this.deviceOnly = shared === null;
-    this.store = shared ?? this.o.privateStore(ref.uri);
-    const list = await this.list();
-    const newest = list.at(-1);
-    this.lastHash = null;
+    this.store = store;
+    this.lastText = null;
+    const newest = (await this.list()).at(-1);
+    if (gen !== this.generation) return;
     if (newest) {
-      const raw = await this.store.read(newest.name);
-      if (raw !== null) this.lastHash = syncHash(splitLabel(raw).text);
+      const raw = await store.read(newest.name);
+      if (gen !== this.generation) return;
+      if (raw !== null) this.lastText = splitLabel(raw).text;
     }
     await this.take(text, 'auto');
+    if (gen !== this.generation) return;
     this.timer = setInterval(() => void this.tick(), AUTO_INTERVAL_MS);
   }
 
   detach(): void {
+    this.generation++;
     clearInterval(this.timer);
     this.timer = undefined;
     this.ref = null;
@@ -163,20 +173,20 @@ export class SnapshotService {
    * except for named snapshots.
    */
   async take(text: string, kind: SnapshotKind, label?: string): Promise<Snapshot | null> {
-    if (!this.store) throw new Error('No file attached');
-    const hash = syncHash(text);
+    const store = this.store;
+    if (!store) throw new Error('No file attached');
     // Never two identical snapshots in a row. A named one is the writer's explicit ask: always written.
-    if (kind !== 'named' && hash === this.lastHash) return null;
+    if (kind !== 'named' && text === this.lastText) return null;
     let time = Math.floor(this.now() / 1000) * 1000;
     let name = snapshotFileName(time, kind, label);
-    const existing = new Set(await this.store.list());
+    const existing = new Set(await store.list());
     while (existing.has(name)) {
       time += 1000;
       name = snapshotFileName(time, kind, label);
     }
-    await this.store.write(name, withLabel(text, label));
-    this.lastHash = hash;
-    if (kind === 'auto') await this.prune();
+    await store.write(name, withLabel(text, label));
+    if (store === this.store) this.lastText = text;
+    if (kind === 'auto') await this.prune(store);
     return { name, time, kind, ...(label && slugify(label) ? { slug: slugify(label) } : {}) };
   }
 
@@ -190,15 +200,21 @@ export class SnapshotService {
       .sort((a, b) => (a.name < b.name ? -1 : 1));
   }
 
-  /** Newest first, with full labels. */
+  /** Newest first. Only named snapshots carry a label, so only those files are read (in parallel). */
   async entries(): Promise<SnapshotEntry[]> {
-    const out: SnapshotEntry[] = [];
-    for (const s of (await this.list()).reverse()) {
-      const raw = await this.store?.read(s.name);
-      const label = raw ? splitLabel(raw).label : undefined;
-      out.push(label ? { ...s, label } : s);
-    }
-    return out;
+    const store = this.store;
+    const list = (await this.list()).reverse();
+    return Promise.all(
+      list.map(async (s): Promise<SnapshotEntry> => {
+        if (s.kind !== 'named' || !store) return s;
+        try {
+          const label = splitLabel((await store.read(s.name)) ?? '').label;
+          return label ? { ...s, label } : s;
+        } catch {
+          return s;
+        }
+      }),
+    );
   }
 
   async read(snapshot: Snapshot): Promise<string> {
@@ -220,8 +236,10 @@ export class SnapshotService {
     await this.store?.remove(snapshot.name);
   }
 
-  private async prune(): Promise<void> {
-    if (!this.store) return;
-    for (const s of selectPrunable(await this.list(), this.now())) await this.store.remove(s.name);
+  private async prune(store: SidecarStore): Promise<void> {
+    const snaps = (await store.list())
+      .map(parseSnapshotName)
+      .filter((x): x is Snapshot => x !== null);
+    for (const s of selectPrunable(snaps, this.now())) await store.remove(s.name);
   }
 }

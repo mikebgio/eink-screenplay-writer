@@ -123,6 +123,49 @@ describe('SnapshotService', () => {
     expect(privateStores.get('mem://solo/draft.fountain')?.m.size).toBe(1);
   });
 
+  it('prunes old auto snapshots when a new auto snapshot is taken, never named ones', async () => {
+    const ref = folder(current);
+    const store = storage.sidecar(ref)!;
+    const old = (iso: string, kind: string) => `${iso}--${kind}.fountain`;
+    // Two auto snapshots in the same hour ~3 days ago, plus an ancient named one.
+    await store.write(old('2026-11-09T10-05-00Z', 'auto'), 'a');
+    await store.write(old('2026-11-09T10-45-00Z', 'auto'), 'b');
+    await store.write(old('2025-01-01T00-00-00Z', 'named'), 'c');
+    await svc.attach(ref, current, () => current);
+    const left = await store.list();
+    expect(left).not.toContain(old('2026-11-09T10-05-00Z', 'auto'));
+    expect(left).toContain(old('2026-11-09T10-45-00Z', 'auto'));
+    expect(left).toContain(old('2025-01-01T00-00-00Z', 'named'));
+  });
+
+  it('gives same-second snapshots distinct names', async () => {
+    await svc.attach(folder(current), current, () => current);
+    const a = await svc.take('one', 'named', 'x');
+    const b = await svc.take('two', 'named', 'x');
+    expect(a!.name).not.toBe(b!.name);
+    expect(names()).toHaveLength(3);
+  });
+
+  it('a superseded attach neither writes into the new file nor leaves a timer running', async () => {
+    const a = storage.seed('mem://f/a.fountain', 'A text', 'mem://f');
+    const b = storage.seed('mem://f/b.fountain', 'B text', 'mem://f');
+    const first = svc.attach(a, 'A text', () => 'A text');
+    const second = svc.attach(b, 'B text', () => 'B text');
+    await Promise.all([first, second]);
+    expect(storage.sidecars.get('mem://f/.a.snapshots')?.size ?? 0).toBe(0);
+    expect(storage.sidecars.get('mem://f/.b.snapshots')?.size).toBe(1);
+    expect(vi.getTimerCount()).toBe(1);
+    svc.detach();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a detach during attach leaves no timer', async () => {
+    const p = svc.attach(folder(current), current, () => current);
+    svc.detach();
+    await p.catch(() => {});
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('only named snapshots can be deleted', async () => {
     await svc.attach(folder(current), current, () => current);
     const auto = (await svc.list())[0]!;
@@ -145,6 +188,16 @@ describe('snapshot label header', () => {
 });
 
 describe('snapshot folder names', () => {
+  it('keeps other extensions, so draft.txt and draft.fountain differ', () => {
+    expect(snapshotDirName('draft.txt')).not.toBe(snapshotDirName('draft.fountain'));
+    expect(snapshotDirName('draft.fountain')).toBe('.draft.snapshots');
+  });
+  it('truncates long names to 100 characters plus a disambiguating hash', () => {
+    const a = snapshotDirName(`${'x'.repeat(150)}1.fountain`);
+    const b = snapshotDirName(`${'x'.repeat(150)}2.fountain`);
+    expect(a.length).toBeLessThanOrEqual(1 + 100 + 9 + '.snapshots'.length);
+    expect(a).not.toBe(b);
+  });
   it('keeps plain names readable and separates names that sanitise alike', () => {
     expect(snapshotDirName('a b.fountain')).toBe('.a b.snapshots');
     expect(snapshotDirName('a?b.fountain')).not.toBe(snapshotDirName('a*b.fountain'));
@@ -203,26 +256,29 @@ describe('selectPrunable', () => {
       now - (7 * D - 10 * 60_000),
     ]);
   });
-  it('keeps the newest per day for 30 days, boundary at 30 d', () => {
-    const a = snap(8 * D);
-    const b = snap(8 * D + H); // same day-ish bucket, older (unless day edge)
-    const sameDay = Math.floor(a.time / D) === Math.floor(b.time / D);
-    expect(pruned([a, b])).toEqual(sameDay ? [b.time] : []);
-    const edge = [snap(30 * D), snap(30 * D + 1000)];
-    expect(pruned(edge).length).toBeLessThanOrEqual(1);
+  // `now` is 2026-11-30T12:00Z. Fixed timestamps so the buckets are known, not recomputed.
+  const at = (iso: string): Snapshot => {
+    const time = Date.parse(iso);
+    return { name: snapshotFileName(time, 'auto'), time, kind: 'auto' };
+  };
+  it('keeps the newest per day for 30 days', () => {
+    const newer = at('2026-11-22T12:00:00Z');
+    const older = at('2026-11-22T11:00:00Z'); // same UTC day
+    const nextDay = at('2026-11-21T12:00:00Z');
+    expect(pruned([newer, older, nextDay])).toEqual([older.time]);
+  });
+  it('pins the 30 d boundary: exactly 30 d is still daily, older is weekly', () => {
+    const exactly = at('2026-10-31T12:00:00Z'); // age == 30 d
+    const sameDayLater = at('2026-10-31T13:00:00Z'); // inside 30 d, same day
+    const justOlder = at('2026-10-31T11:00:00Z'); // age > 30 d: weekly bucket
+    expect(pruned([exactly, sameDayLater])).toEqual([exactly.time]);
+    expect(pruned([exactly, justOlder])).toEqual([]);
   });
   it('keeps the newest per week after 30 days', () => {
-    const w = Math.floor((now - 40 * D) / (7 * D)) * 7 * D + 3 * D; // mid-week
-    const mk = (t: number): Snapshot => ({
-      name: snapshotFileName(t, 'auto'),
-      time: t,
-      kind: 'auto',
-    });
-    const newer = mk(w + D);
-    const older = mk(w);
-    expect(pruned([newer, older])).toEqual([older.time]);
-    const other = mk(w - 7 * D);
-    expect(pruned([newer, other])).toEqual([]);
+    const newer = at('2026-10-21T12:00:00Z');
+    const older = at('2026-10-21T11:00:00Z'); // same epoch week (Thu 10-15 → Wed 10-21)
+    const prevWeek = at('2026-10-14T12:00:00Z');
+    expect(pruned([newer, older, prevWeek])).toEqual([older.time]);
   });
   it('never selects non-auto snapshots', () => {
     const all = (['named', 'pre-restore', 'pre-conflict'] as const).flatMap((k) => [

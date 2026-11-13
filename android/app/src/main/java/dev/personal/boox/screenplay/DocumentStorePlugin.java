@@ -195,6 +195,11 @@ public class DocumentStorePlugin extends Plugin {
         return d;
     }
 
+    /** Sidecar file names are plain children: no separators, no traversal, not empty. */
+    private static boolean validSidecarName(String name) {
+        return name != null && !name.isEmpty() && !name.contains("/") && !name.contains("\\") && !name.contains("..");
+    }
+
     @PluginMethod
     public void sidecarList(PluginCall call) {
         JSArray names = new JSArray();
@@ -211,7 +216,9 @@ public class DocumentStorePlugin extends Plugin {
     public void sidecarRead(PluginCall call) {
         try {
             DocumentFile d = sidecarDir(call, false);
-            DocumentFile f = d == null ? null : d.findFile(call.getString("name"));
+            String name = call.getString("name");
+            if (!validSidecarName(name)) throw new Exception("Bad name");
+            DocumentFile f = d == null ? null : d.findFile(name);
             JSObject out = new JSObject();
             out.put("text", f == null ? null : readUri(f.getUri()));
             call.resolve(out);
@@ -226,7 +233,7 @@ public class DocumentStorePlugin extends Plugin {
             DocumentFile d = sidecarDir(call, true);
             if (d == null) throw new Exception("No sidecar folder");
             String name = call.getString("name");
-            if (name == null || name.contains("/") || name.startsWith("..")) throw new Exception("Bad name");
+            if (!validSidecarName(name)) throw new Exception("Bad name");
             DocumentFile f = d.findFile(name);
             if (f == null) f = d.createFile("text/plain", name);
             if (f == null) throw new Exception("Cannot create " + name);
@@ -239,9 +246,15 @@ public class DocumentStorePlugin extends Plugin {
 
     @PluginMethod
     public void sidecarRemove(PluginCall call) {
-        DocumentFile d = sidecarDir(call, false);
-        DocumentFile f = d == null ? null : d.findFile(call.getString("name"));
-        if (f != null) f.delete();
-        call.resolve();
+        try {
+            DocumentFile d = sidecarDir(call, false);
+            String name = call.getString("name");
+            if (!validSidecarName(name)) throw new Exception("Bad name");
+            DocumentFile f = d == null ? null : d.findFile(name);
+            if (f != null) f.delete();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Remove failed: " + e.getMessage());
+        }
     }
 }

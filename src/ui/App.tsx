@@ -61,7 +61,7 @@ export function App() {
     [storage],
   );
   const [snapOpen, setSnapOpen] = useState(false);
-  const [focusName, setFocusName] = useState(false);
+  const [focusSeq, setFocusSeq] = useState(0);
   const [snapEntries, setSnapEntries] = useState<SnapshotEntry[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const refreshSnaps = useCallback(
@@ -113,6 +113,11 @@ export function App() {
   useEffect(() => onBackground(() => void session.onBackground()), [session]);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => () => snapshots.detach(), [snapshots]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
   // Ctrl+D toggles the variable drawer (captured before the editor's own Ctrl+D binding).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -129,7 +134,7 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         setSnapOpen(true);
-        setFocusName(true);
+        setFocusSeq((n) => n + 1);
         refreshSnaps();
       }
     };
@@ -167,6 +172,7 @@ export function App() {
         setCurrent(ref);
         show(session.text);
         snapshots.detach();
+        setToast(null);
         void snapshots.attach(ref, session.text, () => session.text).then(refreshSnaps, () => {});
         setRecovery(rec);
         setRecents(await recent.add(ref));
@@ -332,6 +338,7 @@ export function App() {
           onClick={() => {
             void session.save().then(() => {
               snapshots.detach();
+              setToast(null);
               setSnapOpen(false);
               setCurrent(null);
             });
@@ -353,7 +360,6 @@ export function App() {
           type="button"
           aria-pressed={snapOpen}
           onClick={() => {
-            setFocusName(false);
             setSnapOpen((o) => !o);
             refreshSnaps();
           }}
@@ -445,7 +451,7 @@ export function App() {
           <SnapshotPanel
             entries={snapEntries}
             deviceOnly={snapshots.deviceOnly}
-            focusName={focusName}
+            focusSeq={focusSeq}
             getCurrent={() => editor.current?.getText() ?? session.text}
             readSnapshot={(s) => snapshots.read(s)}
             onName={async (label) => {
