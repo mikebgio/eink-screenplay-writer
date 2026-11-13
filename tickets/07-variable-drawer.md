@@ -1,7 +1,7 @@
 ---
 id: 07
 title: Variable Drawer
-status: in-progress
+status: needs-device
 blocked_by: [04, 05]
 model: sonnet
 ---
@@ -64,8 +64,8 @@ The writer's signature feature. A drawer lists key → value pairs. Writing `{{K
 - [x] Title-page round trip: drawer edits produce the expected file text (tested on the text-transform functions, not on the UI).
 - [x] Rename updates the definition and every use; a single undo restores everything (tested on the transform; checked by hand in the UI).
 - [x] Delete-with-uses offers both options and each behaves correctly.
-- [ ] The drawer shows usage counts; Show uses jumps to the right place.
-- [ ] Undefined keys are visibly marked in the editor and print view.
+- [x] The drawer shows usage counts; Show uses jumps to the right place.
+- [x] Undefined keys are visibly marked in the editor and print view.
 - [x] The `.fountain` file saved after using the drawer opens in a plain text editor with readable `Var-` lines.
 - [ ] (device) A value change shows on the Boox print view in under about 0.5 s.
 
@@ -75,7 +75,7 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 
 ## Handoff notes
 
-**Status: in-progress, waiting on ticket 05** for the print-view criteria: "The drawer shows usage counts; Show uses jumps to the right place" (the editor jump and counts work; the print-page jump and page numbers need 05's print view) and "Undefined keys are visibly marked in the editor and print view" (the editor mark is done; print view not yet).
+**Status:** every criterion except the (device) one is met; ticket 05 is merged and the print-view parts are done.
 
 **Final resolve API** (`src/engine/variables.ts`, exported from `src/engine`):
 
@@ -87,7 +87,7 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 - Rules: first `Var-KEY` definition wins; values can't contain line breaks; no title page → one is created with a blank line after it; deleting the only entry removes the title page. Rename and "replace with value" skip `{{KEY}}` inside notes and boneyard, and `\{{KEY}}` is never a use. Re-parse is not skipped on a value change; it relies on ticket 05's performance budget.
 - UI: `Editor` takes `onReady(handle)` (`getText`, `apply`, `reveal`); `VariableDrawer.tsx`; `variableMarks.ts` (editor dashed box for undefined, dotted underline with the "UPPER_CASE" hint for invalid). Ctrl+D toggles the drawer (window capture listener, beating CodeMirror's Ctrl+D). `App` keeps `printPage` state for Show uses; ticket 05 will need to wire that to its paged view.
 
-**Left for integration (after 05 merges):** dashed box on undefined `{{KEY}}` in the print view; page numbers and jump in "Show uses" (`pageOf` in `App` currently reads `PositionedLine.elementIndex`, which 05 keeps); a golden test for the longer-value page break once 05's golden helper exists (the current test asserts page count only).
+**Print view (ticket 05 API):** `PrintView` takes `undefinedKeys` (a `Set` of keys from `diagnostics` with `kind: 'undefined'`) and draws `{{KEY}}` with `.print-var-undefined`. An escaped `\{{KEY}}` that prints as `{{KEY}}` of an undefined key is boxed too (known quirk). "Show uses" shows the display page number (`pageOf`) and moves the editor selection, the cursor line and the print page (`App.jumpToUse`); from Print-only layout it switches to Both. Golden tests: `test/fixtures/variables/` → `test/golden/variables/` (`UPDATE_GOLDEN=1` rewrites).
 
 **Owner checks:**
 - (Mac) Does Beat print or keep unknown `Var-` keys on its title page? Not checked.
