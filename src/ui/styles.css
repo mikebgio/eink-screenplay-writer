@@ -41,10 +41,16 @@ body,
   color: #000;
 }
 
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
 .app {
   display: flex;
   flex-direction: row;
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
 }
 .pane {
   flex: 1 1 50%;
@@ -104,4 +110,46 @@ body,
 .print-line {
   position: absolute;
   white-space: pre;
+}
+
+.doc-bar,
+.recovery {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 2px solid #000;
+}
+.doc-name {
+  flex: 1;
+  font-weight: 700;
+}
+button {
+  font: inherit;
+  min-height: 44px;
+  padding: 0 16px;
+  color: #000;
+  background: #fff;
+  border: 2px solid #000;
+}
+.start {
+  padding: 24px;
+  max-width: 640px;
+}
+.start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.file-list {
+  list-style: none;
+  padding: 0;
+}
+.file-list button {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 8px;
+}
+.error {
+  font-weight: 700;
 }
