@@ -11,6 +11,9 @@ import {
   resolve,
   setVariable,
   variableUses,
+  diffTitleValues,
+  titlePageChanges,
+  titleValues,
   type EditResult,
   type VariableUse,
 } from '../engine';
@@ -23,6 +26,8 @@ import { newScriptTemplate } from '../storage/template';
 import { Editor, type EditorHandle } from './Editor';
 import { VariableDrawer } from './VariableDrawer';
 import { PrintView } from './PrintView';
+import { TitlePageForm } from './TitlePageForm';
+import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList';
 import { StartScreen } from './StartScreen';
 
 const DEBOUNCE_MS = 150;
@@ -55,6 +60,34 @@ export function App() {
   const hasDoc = useRef(false);
   hasDoc.current = current !== null;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [titleForm, setTitleForm] = useState<ReturnType<typeof titleValues> | null>(null);
+
+  // Spell-check word lists: the writer's dictionary, and words ignored in this script only.
+  const personal = useMemo(() => new WordList(preferencesStore, PERSONAL_DICTIONARY_KEY), []);
+  const ignored = useRef<WordList>(undefined);
+  const [spellVersion, setSpellVersion] = useState(0);
+  useEffect(() => {
+    void personal.load().then(() => setSpellVersion((v) => v + 1));
+  }, [personal]);
+  useEffect(() => {
+    if (!current) return;
+    const list = new WordList(preferencesStore, ignoreKey(current.uri));
+    ignored.current = list;
+    void list.load().then(() => setSpellVersion((v) => v + 1));
+  }, [current]);
+  const spellHooks = useMemo(
+    () => ({
+      personal: () => personal.list(),
+      ignored: () => ignored.current?.list() ?? [],
+      addToDictionary: (w: string) => void personal.add(w),
+      ignoreInScript: (w: string) => void ignored.current?.add(w),
+    }),
+    [personal],
+  );
+  const openTitleForm = useCallback(() => {
+    const h = editor.current;
+    if (h) setTitleForm(titleValues(h.getText()));
+  }, []);
 
   useEffect(() => void recent.list().then(setRecents), [recent]);
   useEffect(() => onBackground(() => void session.onBackground()), [session]);
@@ -73,6 +106,20 @@ export function App() {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
+
+  // Ctrl+T opens the title page form.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 't') {
+        if (!hasDoc.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openTitleForm();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [openTitleForm]);
 
   const show = useCallback((t: string) => {
     clearTimeout(timer.current); // a pending preview update belongs to the old document
@@ -257,6 +304,12 @@ export function App() {
           Files
         </button>
         <span class="doc-name">{current.name}</span>
+        <button type="button" onClick={openTitleForm}>
+          Title page
+        </button>
+        <button type="button" onClick={() => editor.current?.openFind()}>
+          Find
+        </button>
         <button type="button" aria-pressed={drawerOpen} onClick={() => setDrawerOpen((o) => !o)}>
           Variables
         </button>
@@ -310,6 +363,8 @@ export function App() {
             onCursorLine={setCursorLine}
             jump={jump}
             onReady={(h) => (editor.current = h)}
+            spell={spellHooks}
+            spellVersion={spellVersion}
           />
         </section>
         <section
@@ -334,6 +389,20 @@ export function App() {
             }}
           />
         </section>
+        {titleForm && (
+          <TitlePageForm
+            initial={titleForm}
+            onCancel={() => setTitleForm(null)}
+            onSave={(values) => {
+              const h = editor.current;
+              if (h) {
+                const t = h.getText();
+                h.apply(titlePageChanges(t, diffTitleValues(t, values)), 'input.title');
+              }
+              setTitleForm(null);
+            }}
+          />
+        )}
         {drawerOpen && (
           <VariableDrawer
             variables={resolved.variables}
