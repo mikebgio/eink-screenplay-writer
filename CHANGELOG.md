@@ -19,5 +19,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Fix the gradlew path and first-download note in the JDK pin docs, and document the failure mode ([#3](https://github.com/mikebgio/eink-screenplay-writer/pull/3))
+- Fix flaky storage tests by making `MemoryStorage` hashing synchronous ([#10](https://github.com/mikebgio/eink-screenplay-writer/pull/10))
 
 [Unreleased]: https://github.com/mikebgio/eink-screenplay-writer/commits/main
