@@ -1,7 +1,7 @@
 ---
 id: 14
 title: Writing tools
-status: todo
+status: needs-device
 blocked_by: [03]
 model: sonnet
 ---
@@ -61,9 +61,9 @@ Each is independent, so do them in this order and commit after each one.
 
 ## Acceptance criteria
 
-- [ ] `updateTitlePage` tests: adding, changing and clearing each field; keeping `Var-*` and unknown keys in their original order; multi-line values; creating a title page where none existed.
-- [ ] Find tests on the search function: case and whole-word options; notes and boneyard excluded by default; replace all as a single undo (checked through a CodeMirror state test).
-- [ ] Spell-check tests (in a worker or with a direct call): the script's character names, locations and variable values aren't flagged; a misspelled common word is flagged with suggestions; acronyms and `{{KEY}}` are skipped; curly-apostrophe contractions pass.
+- [x] `updateTitlePage` tests: adding, changing and clearing each field; keeping `Var-*` and unknown keys in their original order; multi-line values; creating a title page where none existed.
+- [x] Find tests on the search function: case and whole-word options; notes and boneyard excluded by default; replace all as a single undo (checked through a CodeMirror state test).
+- [x] Spell-check tests (in a worker or with a direct call): the script's character names, locations and variable values aren't flagged; a misspelled common word is flagged with suggestions; acronyms and `{{KEY}}` are skipped; curly-apostrophe contractions pass.
 - [ ] Undo depth and grouping are configured; switching layout keeps the undo history (manual browser check).
 - [ ] (device) Spell-check doesn't make typing on the Boox noticeably slower (compare with ticket 02's latency debug screen numbers before and after; record them in Handoff notes).
 
@@ -73,4 +73,16 @@ Grammar checking, dictionaries for other languages (leave a setting for the dict
 
 ## Handoff notes
 
-_(Fill in: latency before and after spell-check; whether the in-script dictionary setting was built.)_
+**Owner checks** (unticked criteria):
+- (manual) Open a script in the browser: edit a few words, switch Editor / Print / Side by side with Ctrl+P, and confirm Ctrl+Z still walks back through the history. The editor is never re-created on a layout change (the panes are only hidden), but this wasn't exercised in a browser: the file picker can't be driven from the automated preview.
+- (manual) Try the UI by hand: title page form (Ctrl+T), find panel (Ctrl+F / Ctrl+H, Enter, Shift+Enter, Esc), and the spell-check right-click / long-press menu.
+- (device) Typing latency on the Boox with spell-check on versus off: not measured. Before: _n/a_. After: _n/a_.
+
+**Decisions and API names**
+- Engine (pure): `updateTitlePage(text, changes)` / `titlePageChanges(text, changes)` (source-offset edits), `titleValues`, `diffTitleValues` in `src/engine/titlePage.ts`. A changed title block is rewritten as one replacement; untouched entries keep their exact text and order. New fields go before the first `Var-` entry. A missing `Credit` reads as "Written by" and is not written unless changed.
+- `findMatches` / `stepMatch` in `src/engine/search.ts` (literal search, notes and boneyard skipped unless `includeHidden`). Only the selected match is highlighted; matches are not all highlighted.
+- `src/ui/historyConfig.ts`: `HISTORY_CONFIG` (minDepth 10,000, newGroupDelay 1000) and `asUndoStep(spec, userEvent)`, which adds `isolateHistory.of('full')` so a programmatic change is always its own undo step. `EditorHandle.apply(changes, userEvent?)` now uses it, so drawer edits, renames and title page saves are one step each. Later tickets (restores, force-element commands) should dispatch through `asUndoStep` too.
+- Spell-check: `src/engine/spellScan.ts` (what to check and what the script teaches), `src/spell/checker.ts` (nspell wrapper), `src/ui/spell.worker.ts` (loads the bundled `dictionary-en` files lazily on the first request), `src/ui/spellMarks.ts` (dotted underline, 300 ms debounce, visible lines plus 1,500 characters of margin, context-menu with up to 5 suggestions). The personal dictionary is in Preferences (`spell.personal`); "Ignore in this script" is stored per file URI (`spell.ignore.<uri>`).
+- **The in-script `Dictionary:` title-page key setting was NOT built** (optional in the ticket). The dictionary language has a key constant (`SPELL_LANGUAGE_KEY`) but only en_US ships and there is no settings UI yet.
+- The WebView's own spell-check is off (`spellcheck="false"` on the editor content).
+- New dependencies: `@codemirror/search`, `nspell`, `dictionary-en`. `dictionary-en` is imported by file path (`?url`) because its package entry point uses Node's `fs`.
