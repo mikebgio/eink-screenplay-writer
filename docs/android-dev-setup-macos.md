@@ -57,7 +57,7 @@ Cask semantics ([Cask Cookbook](https://docs.brew.sh/Cask-Cookbook)): `sha256` i
 ## 3. Verifying downloads
 
 - **Android zips/dmg:** Google lists SHA-256 on [developer.android.com/studio](https://developer.android.com/studio) (cmdline-tools mac arm64 `835b62a26162b229b441d1f6d4680383815a270809eb33522c0d480fa5002c4e`, 156.1 MB; Studio arm dmg `06b79fc8f18f80c93fea008d078ce13b7f0a5e978e3e615f6acaffa0af5c6a6d`, 1.5 GB). Check with `shasum -a 256 <file>`. I compared these with the cask values and they match.
-- **Homebrew:** downloads from `url`, compares to the `sha256` in the cask, and fails on mismatch (standard behaviour; the Cookbook page I fetched did not state the mismatch behaviour explicitly, so **unverified** in print). Inspect before installing: `brew cat --cask <name>` and `brew info --cask <name>`.
+- **Homebrew:** downloads from `url`, compares to the `sha256` in the cask, and fails on mismatch (standard behaviour; the Cookbook page I fetched did not state the mismatch behaviour explicitly, so **unverified** in print). Inspect before installing: `brew info --cask --json=v2 <name>` shows the `url` and `sha256`, and the cask source is on GitHub (links above). `brew cat` only works if the cask tap is cloned locally, which Homebrew no longer does by default, and it turns on Homebrew developer mode.
 - **Adoptium:** cask pins `7c4cd71ec227fcff5e30d35816c2fe7d82ce2808b9ac6cc7adbd3272af3d9182` for the aarch64 21.0.13+9 pkg. Compare it with the checksum on the matching GitHub release asset page. The Adoptium signing/GPG documentation page (`/docs/signing/`) returned 404, so signature verification steps are **unverified**. After install: `pkgutil --check-signature <pkg>` works on the downloaded pkg (standard macOS tool; not checked against a primary source here).
 - **Gatekeeper:** for software from outside the App Store it checks developer identity, Apple notarization and tamper status ([Apple Platform Security](https://support.apple.com/guide/security/gatekeeper-and-runtime-protection-sec5599b66df/web)). `spctl -a -vv "/Applications/Android Studio.app"` shows the assessment (standard tool). Raw zips of command-line tools are CLI binaries, so rely on the checksum.
 
@@ -91,8 +91,8 @@ Later tickets: the Onyx SDK is hosted on `https://repo.boox.com/repository/maven
 
 ```sh
 # 0. Inspect first (no install)
-brew cat --cask temurin@21
-brew cat --cask android-commandlinetools
+brew info --cask --json=v2 temurin@21 | grep -E '"(url|sha256|version)"'
+brew info --cask --json=v2 android-commandlinetools | grep -E '"(url|sha256|version)"'
 
 # 1. JDK 21 (will ask for admin password for the pkg)
 brew install --cask temurin@21

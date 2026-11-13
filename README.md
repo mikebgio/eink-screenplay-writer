@@ -11,8 +11,8 @@ E-ink screenplay editor for the Boox Note Air 6C. Edits plain-text Fountain file
 **Full setup guide:** [docs/android-dev-setup-macos.md](docs/android-dev-setup-macos.md). It covers where each tool comes from, how to check downloads, a setup without Homebrew, Boox USB debugging, and uninstalling. The recommended path, in short:
 
 ```bash
-brew cat --cask temurin@21                # read the package definition first
-brew cat --cask android-commandlinetools
+brew info --cask --json=v2 temurin@21 | grep -E '"(url|sha256|version)"'   # check source + checksum first
+brew info --cask --json=v2 android-commandlinetools | grep -E '"(url|sha256|version)"'
 brew install --cask temurin@21
 brew install --cask android-commandlinetools
 ```
