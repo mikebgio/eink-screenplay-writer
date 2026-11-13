@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Pin the Gradle daemon to JDK 21 ([#2](https://github.com/mikebgio/eink-screenplay-writer/pull/2))
-- Group Dependabot updates into one weekly PR per ecosystem, hold new releases for 14 days, and pin GitHub Actions to commit SHAs
+- Group Dependabot updates into one weekly PR per ecosystem, hold new releases for 14 days, and pin GitHub Actions to commit SHAs ([#18](https://github.com/mikebgio/eink-screenplay-writer/pull/18))
+- Bump actions/checkout to v7, actions/setup-node to v7, actions/setup-java to v6, actions/upload-artifact to v7, and androidx.documentfile to 1.1.0 ([#18](https://github.com/mikebgio/eink-screenplay-writer/pull/18))
 
 ### Fixed
 

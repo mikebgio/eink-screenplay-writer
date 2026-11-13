@@ -19,11 +19,13 @@ updates:
       all:
         patterns:
           - "*"
-    # typescript-eslint 8.x caps its peer range at typescript <6.1.0, so a
-    # TypeScript 7 bump breaks lint and typecheck. Hold majors until it supports 7.
+    # typescript-eslint 8.x caps its peer range at typescript <6.1.0, so any
+    # TypeScript bump past 6.0.x (6.1 or 7) breaks npm ci, lint and typecheck.
+    # Hold minors and majors until typescript-eslint widens its range.
     ignore:
       - dependency-name: typescript
         update-types:
+          - version-update:semver-minor
           - version-update:semver-major
 
   - package-ecosystem: gradle
@@ -38,10 +40,14 @@ updates:
       all:
         patterns:
           - "*"
-    # Gradle 9.6+ removed internal APIs that AGP 8.13.0 uses. Hold the wrapper's
-    # major version until AGP is upgraded.
+    # Gradle 9.6+ removed internal APIs that AGP 8.13.0 uses, and AGP 9 needs
+    # Gradle 9. The wrapper and AGP majors have to move together, so hold both
+    # and upgrade them by hand in one change.
     ignore:
       - dependency-name: gradle-wrapper
+        update-types:
+          - version-update:semver-major
+      - dependency-name: com.android.tools.build:gradle
         update-types:
           - version-update:semver-major
 
