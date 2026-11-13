@@ -78,8 +78,6 @@ body,
 .editor-host .cm-editor {
   font-family: 'Courier Prime', monospace;
   font-size: 16px;
-  background: #fff;
-  color: #000;
 }
 .editor-host .cm-editor.cm-focused {
   outline: 2px solid #000;
@@ -99,8 +97,6 @@ body,
   top: 0;
   left: 0;
   transform-origin: top left;
-  background: #fff;
-  color: #000;
   font-family: 'Courier Prime', monospace;
   font-size: 12pt;
   line-height: 12pt;

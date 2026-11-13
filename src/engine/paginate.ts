@@ -69,8 +69,8 @@ export function paginate(doc: ScriptDocument): PagedScript {
     const layout = LAYOUT[el.type];
     const lines = wrap(el.text, layout.width);
     // Blank line between elements (not at the top of a page, and a page-ending blank is dropped).
+    // wrap() always yields at least one line, so the loop's check handles a blank that ends the page.
     if (row > 0) row += 1;
-    if (row >= BODY_LINES_PER_PAGE) startNewPage();
     for (const text of lines) {
       if (row >= BODY_LINES_PER_PAGE) startNewPage();
       const line: PositionedLine = {

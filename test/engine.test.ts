@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { paginate, parse } from '../src/engine';
 
 const types = (text: string) => parse(text).elements.map((e) => e.type);
+/** `n` numbered items: words('w', 3) === 'w0 w1 w2'. */
+const words = (prefix: string, n: number, sep = ' ') =>
+  Array.from({ length: n }, (_, i) => `${prefix}${i}`).join(sep);
 
 describe('parse', () => {
   it('classifies scene headings, including forced ones', () => {
@@ -54,7 +57,7 @@ describe('parse', () => {
 
 describe('paginate', () => {
   it('wraps long action at 60 characters', () => {
-    const long = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ');
+    const long = words('word', 40);
     const lines = paginate(parse(long)).pages[0]!.lines;
     expect(lines.length).toBeGreaterThan(1);
     for (const l of lines) {
@@ -65,7 +68,7 @@ describe('paginate', () => {
   });
 
   it('wraps long dialogue at 35 characters, indented 2.5 inches', () => {
-    const long = Array.from({ length: 30 }, (_, i) => `talk${i}`).join(' ');
+    const long = words('talk', 30);
     const lines = paginate(parse(`BOB\n${long}`)).pages[0]!.lines;
     const dialogue = lines.filter((l) => l.type === 'dialogue');
     expect(dialogue.length).toBeGreaterThan(1);
@@ -82,7 +85,7 @@ describe('paginate', () => {
   });
 
   it('produces more than one page for a 200-line script, with 54 body lines per page', () => {
-    const script = Array.from({ length: 200 }, (_, i) => `Line ${i}`).join('\n\n');
+    const script = words('Line ', 200, '\n\n');
     const paged = paginate(parse(script));
     expect(paged.pageCount).toBeGreaterThan(1);
     expect(paged.pages[0]!.lines.length).toBeLessThanOrEqual(54);
@@ -90,7 +93,7 @@ describe('paginate', () => {
   });
 
   it('fills exactly 54 body rows before breaking the page', () => {
-    const block = Array.from({ length: 60 }, (_, i) => `Row ${i}`).join('\n');
+    const block = words('Row ', 60, '\n');
     const paged = paginate(parse(block));
     expect(paged.pages.map((p) => p.lines.length)).toEqual([54, 6]);
     expect(paged.pages[0]!.lines.at(-1)!.y).toBeCloseTo(1 + 53 / 6);

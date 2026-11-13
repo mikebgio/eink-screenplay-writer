@@ -15,41 +15,39 @@ function isCharacter(line: string): boolean {
 export function parse(text: string): ScriptDocument {
   const lines = text.split(/\r?\n/);
   const elements: ScriptElement[] = [];
+  const isBlank = (n: number) => (lines[n] ?? '').trim() === '';
   let i = 0;
   while (i < lines.length) {
-    if ((lines[i] ?? '').trim() === '') {
+    if (isBlank(i)) {
       i++;
       continue;
     }
     // Collect one block of consecutive non-blank lines.
     const start = i;
-    while (i < lines.length && (lines[i] ?? '').trim() !== '') i++;
+    while (i < lines.length && !isBlank(i)) i++;
     const block = lines.slice(start, i);
     const first = (block[0] ?? '').trim();
-
-    if (isSceneHeading(first)) {
-      elements.push({
-        type: 'scene-heading',
-        text: first.startsWith('.') ? first.slice(1).trim() : first,
-        startLine: start,
-        endLine: start,
-      });
+    /** Push the block's first line as `head`, then any remaining lines as one `rest` element. */
+    const pushSplit = (
+      head: ScriptElement['type'],
+      headText: string,
+      rest: ScriptElement['type'],
+    ) => {
+      elements.push({ type: head, text: headText, startLine: start, endLine: start });
       if (block.length > 1) {
         elements.push({
-          type: 'action',
+          type: rest,
           text: block.slice(1).join('\n'),
           startLine: start + 1,
           endLine: i - 1,
         });
       }
+    };
+
+    if (isSceneHeading(first)) {
+      pushSplit('scene-heading', first.startsWith('.') ? first.slice(1).trim() : first, 'action');
     } else if (block.length > 1 && isCharacter(first)) {
-      elements.push({ type: 'character', text: first, startLine: start, endLine: start });
-      elements.push({
-        type: 'dialogue',
-        text: block.slice(1).join('\n'),
-        startLine: start + 1,
-        endLine: i - 1,
-      });
+      pushSplit('character', first, 'dialogue');
     } else {
       elements.push({ type: 'action', text: block.join('\n'), startLine: start, endLine: i - 1 });
     }
