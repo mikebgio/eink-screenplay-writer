@@ -1,5 +1,6 @@
 import { hashText, type FileRef, type SidecarStore, type StoragePort } from '../storage/port';
 import { DocumentStore } from './documentStore';
+import { snapshotDirName } from '../storage/snapshots';
 
 /** StoragePort over the Android DocumentStore plugin. */
 export class NativeStorage implements StoragePort {
@@ -33,12 +34,14 @@ export class NativeStorage implements StoragePort {
   sidecar(ref: FileRef): SidecarStore | null {
     const folderUri = ref.folderUri;
     if (!folderUri) return null;
+    const dir = snapshotDirName(ref.name);
     return {
-      list: async () => (await DocumentStore.sidecarList({ folderUri })).names,
+      list: async () => (await DocumentStore.sidecarList({ folderUri, dir })).names,
       // Java drops a null JSObject value, so a missing file arrives as undefined.
-      read: async (name) => (await DocumentStore.sidecarRead({ folderUri, name })).text ?? null,
-      write: (name, text) => DocumentStore.sidecarWrite({ folderUri, name, text }),
-      remove: (name) => DocumentStore.sidecarRemove({ folderUri, name }),
+      read: async (name) =>
+        (await DocumentStore.sidecarRead({ folderUri, dir, name })).text ?? null,
+      write: (name, text) => DocumentStore.sidecarWrite({ folderUri, dir, name, text }),
+      remove: (name) => DocumentStore.sidecarRemove({ folderUri, dir, name }),
     };
   }
 }

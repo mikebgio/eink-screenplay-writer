@@ -1,7 +1,7 @@
 ---
 id: 11
 title: Snapshots and comparing drafts
-status: todo
+status: needs-device
 blocked_by: [04]
 model: sonnet
 ---
@@ -52,16 +52,16 @@ Snapshots are plain `.fountain` files, so they're readable anywhere.
 
 ## Acceptance criteria
 
-- [ ] `SnapshotService` tests against `MemoryStorage`:
+- [x] `SnapshotService` tests against `MemoryStorage`:
   - named snapshot written with the label
   - auto on open only when the text differs
   - auto every 10 minutes only when changed (fake timers)
   - no duplicates in a row
   - restore writes pre-restore first, then replaces the text
   - single-file mode uses app-private storage
-- [ ] `selectPrunable` tests cover every tier, at the boundaries (exactly 24 h, 7 d, 30 d), and never select non-auto snapshots.
-- [ ] `diff` tests: identical text, pure add, pure remove, a mixed change in the middle, and the collapse of unchanged runs in the view model.
-- [ ] File names sort chronologically and survive a round trip through the name parser.
+- [x] `selectPrunable` tests cover every tier, at the boundaries (exactly 24 h, 7 d, 30 d), and never select non-auto snapshots.
+- [x] `diff` tests: identical text, pure add, pure remove, a mixed change in the middle, and the collapse of unchanged runs in the view model.
+- [x] File names sort chronologically and survive a round trip through the name parser.
 - [ ] (manual, browser) Take a named snapshot, edit, compare, restore, then undo the restore.
 - [ ] (device) In workspace-folder mode, the snapshot folder appears in Drive or the local folder, and a snapshot `.fountain` opens on the Mac.
 
@@ -71,4 +71,9 @@ Conflict handling (12), revision colours and locked pages (Phase 3).
 
 ## Handoff notes
 
-_(Fill in: the SnapshotService API that ticket 12 will call to take pre-conflict snapshots.)_
+- **API for ticket 12:** `SnapshotService` (`src/storage/snapshots.ts`). `attach(ref, text, getText)` on open (safe against being superseded by a later `attach`/`detach`; takes the on-open auto snapshot and starts the 10-minute timer), `detach()`, `take(text, kind, label?)`, `list()`, `entries()`, `read(s)`, `restore(s, currentText)`, `remove(s)`. Ticket 12 calls `snapshots.take(localText, 'pre-conflict')` before replacing or overwriting anything. `take` returns `null` (nothing written) when the text equals the previous snapshot; named snapshots are always written.
+- **Sidecar folder:** `.<script-name>.snapshots/` (only a trailing `.fountain` is dropped from the name; other extensions stay so files never share a folder; unsafe characters are replaced and a hash of the original name is added). The Storage port's `sidecar(ref)` now scopes by script name; `DocumentStorePlugin.java` takes a `dir` argument (default stays `.scriptwriter`) and `NativeStorage` passes `snapshotDirName(ref.name)`. Browser backends return `null`, so they use app-private storage (`privateSnapshotStore`, Capacitor `Directory.Data`) and show the device-only notice.
+- **Diff:** own LCS in `src/engine/diff.ts` (no `diff` npm package added). `diff`, `diffStats`, `diffRows` (collapse runs over 6 lines). Comparison paginates 24 rows per page with Prev/Next.
+- `syncHash` moved from `memory.ts` to `port.ts` (re-exported from `memory.ts`); the service uses it for content dedupe because `crypto.subtle` can't be driven by fake timers.
+- Restore replaces the whole editor text in one CodeMirror transaction (one undo step). `Ctrl+Shift+S` opens the Snapshots panel with the name field focused (no command registry exists yet), and there is a Snapshots button in the header.
+- **Owner checks:** (manual, browser) take a named snapshot, edit, compare, restore, then undo the restore. (device) In workspace-folder mode the `.<script>.snapshots` folder appears in Drive or the local folder and a snapshot `.fountain` opens on the Mac (this also exercises the untested Java `dir` change). Also check single-file mode on the Boox.

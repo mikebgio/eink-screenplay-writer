@@ -182,18 +182,28 @@ public class DocumentStorePlugin extends Plugin {
         return uri == null ? null : DocumentFile.fromTreeUri(getContext(), Uri.parse(uri));
     }
 
-    private DocumentFile sidecarDir(String folderUri, boolean create) {
+    private DocumentFile sidecarDir(PluginCall call, boolean create) {
+        String folderUri = call.getString("folderUri");
+        String dirName = call.getString("dir", SIDECAR_DIR);
+        // Only our own folder names: no separators or traversal.
+        if (!SIDECAR_DIR.equals(dirName) && !dirName.matches("^\\.[A-Za-z0-9._ -]{1,110}\\.snapshots$")) return null;
+        if (dirName.contains("..") || dirName.contains("/")) return null;
         DocumentFile root = folder(folderUri);
         if (root == null) return null;
-        DocumentFile d = root.findFile(SIDECAR_DIR);
-        if (d == null && create) d = root.createDirectory(SIDECAR_DIR);
+        DocumentFile d = root.findFile(dirName);
+        if (d == null && create) d = root.createDirectory(dirName);
         return d;
+    }
+
+    /** Sidecar file names are plain children: no separators, no traversal, not empty. */
+    private static boolean validSidecarName(String name) {
+        return name != null && !name.isEmpty() && !name.contains("/") && !name.contains("\\") && !name.contains("..");
     }
 
     @PluginMethod
     public void sidecarList(PluginCall call) {
         JSArray names = new JSArray();
-        DocumentFile d = sidecarDir(call.getString("folderUri"), false);
+        DocumentFile d = sidecarDir(call, false);
         if (d != null) {
             for (DocumentFile f : d.listFiles()) if (f.getName() != null) names.put(f.getName());
         }
@@ -205,8 +215,10 @@ public class DocumentStorePlugin extends Plugin {
     @PluginMethod
     public void sidecarRead(PluginCall call) {
         try {
-            DocumentFile d = sidecarDir(call.getString("folderUri"), false);
-            DocumentFile f = d == null ? null : d.findFile(call.getString("name"));
+            DocumentFile d = sidecarDir(call, false);
+            String name = call.getString("name");
+            if (!validSidecarName(name)) throw new Exception("Bad name");
+            DocumentFile f = d == null ? null : d.findFile(name);
             JSObject out = new JSObject();
             out.put("text", f == null ? null : readUri(f.getUri()));
             call.resolve(out);
@@ -218,9 +230,10 @@ public class DocumentStorePlugin extends Plugin {
     @PluginMethod
     public void sidecarWrite(PluginCall call) {
         try {
-            DocumentFile d = sidecarDir(call.getString("folderUri"), true);
+            DocumentFile d = sidecarDir(call, true);
             if (d == null) throw new Exception("No sidecar folder");
             String name = call.getString("name");
+            if (!validSidecarName(name)) throw new Exception("Bad name");
             DocumentFile f = d.findFile(name);
             if (f == null) f = d.createFile("text/plain", name);
             if (f == null) throw new Exception("Cannot create " + name);
@@ -233,9 +246,15 @@ public class DocumentStorePlugin extends Plugin {
 
     @PluginMethod
     public void sidecarRemove(PluginCall call) {
-        DocumentFile d = sidecarDir(call.getString("folderUri"), false);
-        DocumentFile f = d == null ? null : d.findFile(call.getString("name"));
-        if (f != null) f.delete();
-        call.resolve();
+        try {
+            DocumentFile d = sidecarDir(call, false);
+            String name = call.getString("name");
+            if (!validSidecarName(name)) throw new Exception("Bad name");
+            DocumentFile f = d == null ? null : d.findFile(name);
+            if (f != null) f.delete();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Remove failed: " + e.getMessage());
+        }
     }
 }

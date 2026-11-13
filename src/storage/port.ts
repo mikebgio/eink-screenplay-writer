@@ -34,3 +34,16 @@ export async function hashText(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+/**
+ * Synchronous 64-bit FNV-1a hash as hex. Not collision-resistant: use it only where a clash is
+ * harmless (MemoryStorage versions, disambiguating short folder names), never to decide that two
+ * texts are equal. crypto.subtle can't be flushed by fake timers, so tests need this one.
+ */
+export function syncHash(text: string): string {
+  let h = 0xcbf29ce484222325n;
+  for (let i = 0; i < text.length; i++) {
+    h = BigInt.asUintN(64, (h ^ BigInt(text.charCodeAt(i))) * 0x100000001b3n);
+  }
+  return h.toString(16).padStart(16, '0');
+}

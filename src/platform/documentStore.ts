@@ -8,11 +8,15 @@ export interface DocumentStorePlugin {
   listFolder(o: { folderUri: string }): Promise<{ files: { uri: string; name: string }[] }>;
   read(o: { uri: string }): Promise<{ text: string }>;
   write(o: { uri: string; text: string }): Promise<void>;
-  /** Sidecar files live in a `.<name>.sidecar`-style child directory of the picked folder. */
-  sidecarList(o: { folderUri: string }): Promise<{ names: string[] }>;
-  sidecarRead(o: { folderUri: string; name: string }): Promise<{ text: string | null }>;
-  sidecarWrite(o: { folderUri: string; name: string; text: string }): Promise<void>;
-  sidecarRemove(o: { folderUri: string; name: string }): Promise<void>;
+  /** Sidecar files live in the `dir` child directory (`.<script>.snapshots`) of the picked folder. */
+  sidecarList(o: { folderUri: string; dir: string }): Promise<{ names: string[] }>;
+  sidecarRead(o: {
+    folderUri: string;
+    dir: string;
+    name: string;
+  }): Promise<{ text: string | null }>;
+  sidecarWrite(o: { folderUri: string; dir: string; name: string; text: string }): Promise<void>;
+  sidecarRemove(o: { folderUri: string; dir: string; name: string }): Promise<void>;
 }
 
 export const DocumentStore = registerPlugin<DocumentStorePlugin>('DocumentStore');

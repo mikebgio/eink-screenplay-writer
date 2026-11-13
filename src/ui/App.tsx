@@ -17,13 +17,21 @@ import {
   type EditResult,
   type VariableUse,
 } from '../engine';
-import { createStorage, FilesystemJournal, onBackground, preferencesStore } from '../platform';
+import {
+  createStorage,
+  FilesystemJournal,
+  onBackground,
+  preferencesStore,
+  privateSnapshotStore,
+} from '../platform';
 import type { FileRef } from '../storage/port';
 import { RecentFiles } from '../storage/recent';
 import { LAYOUT_KEY, LAYOUT_MODES, nextLayout, parseLayout, type LayoutMode } from './layout';
 import { DocumentSession, type Recovery, type SaveStatus } from '../storage/session';
 import { newScriptTemplate } from '../storage/template';
 import { Editor, type EditorHandle } from './Editor';
+import { SnapshotService, type SnapshotEntry } from '../storage/snapshots';
+import { SnapshotPanel } from './SnapshotPanel';
 import { VariableDrawer } from './VariableDrawer';
 import { PrintView } from './PrintView';
 import { TitlePageForm } from './TitlePageForm';
@@ -48,6 +56,18 @@ export function App() {
     [storage],
   );
 
+  const snapshots = useMemo(
+    () => new SnapshotService({ storage, privateStore: privateSnapshotStore }),
+    [storage],
+  );
+  const [snapOpen, setSnapOpen] = useState(false);
+  const [focusSeq, setFocusSeq] = useState(0);
+  const [snapEntries, setSnapEntries] = useState<SnapshotEntry[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const refreshSnaps = useCallback(
+    () => void snapshots.entries().then(setSnapEntries, () => setSnapEntries([])),
+    [snapshots],
+  );
   const [current, setCurrent] = useState<FileRef | null>(null);
   const [text, setText] = useState('');
   const [revision, setRevision] = useState(0);
@@ -92,6 +112,12 @@ export function App() {
   useEffect(() => void recent.list().then(setRecents), [recent]);
   useEffect(() => onBackground(() => void session.onBackground()), [session]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => () => snapshots.detach(), [snapshots]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
   // Ctrl+D toggles the variable drawer (captured before the editor's own Ctrl+D binding).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -102,10 +128,19 @@ export function App() {
         e.stopPropagation();
         setDrawerOpen((o) => !o);
       }
+      // Ctrl+Shift+S: name a snapshot.
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 's') {
+        if (!hasDoc.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setSnapOpen(true);
+        setFocusSeq((n) => n + 1);
+        refreshSnaps();
+      }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
+  }, [refreshSnaps]);
 
   // Ctrl+T opens the title page form.
   useEffect(() => {
@@ -136,13 +171,16 @@ export function App() {
         const rec = await session.open(ref);
         setCurrent(ref);
         show(session.text);
+        snapshots.detach();
+        setToast(null);
+        void snapshots.attach(ref, session.text, () => session.text).then(refreshSnaps, () => {});
         setRecovery(rec);
         setRecents(await recent.add(ref));
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [session, recent, show],
+    [session, recent, show, snapshots, refreshSnaps],
   );
 
   const onChange = useCallback(
@@ -298,7 +336,12 @@ export function App() {
         <button
           type="button"
           onClick={() => {
-            void session.save().then(() => setCurrent(null));
+            void session.save().then(() => {
+              snapshots.detach();
+              setToast(null);
+              setSnapOpen(false);
+              setCurrent(null);
+            });
           }}
         >
           Files
@@ -312,6 +355,16 @@ export function App() {
         </button>
         <button type="button" aria-pressed={drawerOpen} onClick={() => setDrawerOpen((o) => !o)}>
           Variables
+        </button>
+        <button
+          type="button"
+          aria-pressed={snapOpen}
+          onClick={() => {
+            setSnapOpen((o) => !o);
+            refreshSnaps();
+          }}
+        >
+          Snapshots
         </button>
         <span class="save-status">{STATUS_LABEL[status]}</span>
         <span class="save-status">
@@ -330,6 +383,11 @@ export function App() {
           ))}
         </span>
       </header>
+      {toast && (
+        <div class="toast" role="status">
+          {toast}
+        </div>
+      )}
       {recovery && (
         <div class="recovery">
           Recover unsaved changes from {new Date(recovery.savedAt).toLocaleString()}?
@@ -389,6 +447,36 @@ export function App() {
             }}
           />
         </section>
+        {snapOpen && (
+          <SnapshotPanel
+            entries={snapEntries}
+            deviceOnly={snapshots.deviceOnly}
+            focusSeq={focusSeq}
+            getCurrent={() => editor.current?.getText() ?? session.text}
+            readSnapshot={(s) => snapshots.read(s)}
+            onName={async (label) => {
+              await snapshots.take(editor.current?.getText() ?? session.text, 'named', label);
+              refreshSnaps();
+            }}
+            onRestore={async (s) => {
+              const h = editor.current;
+              if (!h) return;
+              const old = h.getText();
+              const text = await snapshots.restore(s, old);
+              // One transaction, so a single undo brings the previous text back.
+              h.apply([{ from: 0, to: old.length, insert: text }]);
+              refreshSnaps();
+              setToast(
+                `Restored ${s.label ?? new Date(s.time).toLocaleString()}. Previous version saved as a snapshot.`,
+              );
+            }}
+            onDelete={async (s) => {
+              await snapshots.remove(s);
+              refreshSnaps();
+            }}
+            onClose={() => setSnapOpen(false)}
+          />
+        )}
         {titleForm && (
           <TitlePageForm
             initial={titleForm}

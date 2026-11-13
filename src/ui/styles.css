@@ -319,6 +319,34 @@ button {
   }
 }
 
+/* Snapshot comparison: monochrome. Removed = struck through, added = bold; prefixes carry the signal. */
+.diff-page {
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow: hidden;
+}
+.diff-row {
+  padding: 1px 0;
+}
+.diff-remove {
+  text-decoration: line-through;
+}
+.diff-add {
+  font-weight: 700;
+}
+.diff-collapsed {
+  font-style: italic;
+  text-align: center;
+}
+.snap-compare {
+  flex: 0 0 50%;
+}
+.toast {
+  padding: 6px 8px;
+  border-bottom: 2px solid #000;
+  font-weight: 700;
+}
+
 /* Writing tools (ticket 14): monochrome, no animation, 44 px tap targets. */
 .find-panel {
   display: flex;

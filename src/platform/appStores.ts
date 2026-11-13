@@ -1,6 +1,6 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
-import { hashText } from '../storage/port';
+import { hashText, type SidecarStore } from '../storage/port';
 import type { JournalEntry, JournalStore } from '../storage/journal';
 import type { KeyValueStore } from '../storage/recent';
 
@@ -47,3 +47,45 @@ export const preferencesStore: KeyValueStore = {
     await Preferences.set({ key, value });
   },
 };
+
+/** Snapshots for a file with no folder access: plain files in app-private storage (Directory.Data). */
+export function privateSnapshotStore(key: string): SidecarStore {
+  let dir: Promise<string> | undefined;
+  const base = () => (dir ??= hashText(key).then((h) => `snapshots-${h.slice(0, 32)}`));
+  const opts = async (name?: string) => ({
+    path: name ? `${await base()}/${name}` : await base(),
+    directory: Directory.Data,
+  });
+  return {
+    async list() {
+      try {
+        return (await Filesystem.readdir(await opts())).files.map((f) => f.name);
+      } catch {
+        return [];
+      }
+    },
+    async read(name) {
+      try {
+        const r = await Filesystem.readFile({ ...(await opts(name)), encoding: Encoding.UTF8 });
+        return String(r.data);
+      } catch {
+        return null;
+      }
+    },
+    async write(name, text) {
+      await Filesystem.writeFile({
+        ...(await opts(name)),
+        encoding: Encoding.UTF8,
+        data: text,
+        recursive: true,
+      });
+    },
+    async remove(name) {
+      try {
+        await Filesystem.deleteFile(await opts(name));
+      } catch {
+        /* already gone */
+      }
+    },
+  };
+}
