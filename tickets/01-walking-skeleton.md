@@ -59,17 +59,13 @@ Real file I/O, other element types, page-break rules, theming, e-ink refresh con
 
 **Status note:** `npm run apk` could NOT run here (no JDK, no Android SDK, no adb). The Android project is scaffolded (`android/`, app id `dev.personal.boox.screenplay`, name "Scriptwriter") and `cap sync` works. So the `npm run apk` criterion stays unticked and the status stays `in-progress` until the owner builds it. The `npm run dev` check was verified afterwards from the main session (editor + print view render, Courier Prime loaded, edit reaches the print view in 161 ms); `npm run build` succeeds and bundles all four Courier Prime TTFs into `dist/assets` (no network fetch). Debounce is 150 ms.
 
-**Owner install commands (macOS):**
-```bash
-brew install --cask temurin@21
-brew install --cask android-commandlinetools
-export ANDROID_HOME="$HOME/Library/Android/sdk"
-mkdir -p "$ANDROID_HOME"
-sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-sdkmanager --sdk_root="$ANDROID_HOME" --licenses
-cd /Users/mgiordano/Repos/Personal/boox && npm run apk
-```
-Then tick the `npm run apk` criterion (APK at `android/app/build/outputs/apk/debug/app-debug.apk`).
+**Owner install steps (macOS):** follow `docs/android-dev-setup-macos.md` §6 (recommended path).
+- Install JDK 21 (Temurin) and Google's command-line tools from Homebrew.
+- Set `ANDROID_HOME=/opt/homebrew/share/android-commandlinetools`.
+- Use `sdkmanager` to install `platform-tools`, `platforms;android-36` and `build-tools;35.0.0`.
+- Run `npm run apk`.
+
+The project needs Android Gradle Plugin 8.13.0, Gradle 8.14.3 (downloaded by the wrapper), compile/target SDK 36 and minimum SDK 24, and JDK 21, because Capacitor 8 compiles with Java 21. Then tick the `npm run apk` criterion (APK at `android/app/build/outputs/apk/debug/app-debug.apk`).
 
 **Owner checks:** (device) APK installs and shows the sample script on the Note Air 6C; engine-purity proof was done once (a `@capacitor/core` import in `src/engine/` failed ESLint, a `document` reference failed `tsconfig.engine.json`; then removed).
 

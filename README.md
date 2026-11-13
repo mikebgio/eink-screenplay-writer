@@ -6,17 +6,30 @@ E-ink screenplay editor for the Boox Note Air 6C. Edits plain-text Fountain file
 
 - Node.js LTS and npm
 - JDK 21 (`java -version` must work)
-- Android SDK command-line tools, with `ANDROID_HOME` set (platform 35 or newer, build-tools, platform-tools for `adb`)
+- Android SDK command-line tools, with `ANDROID_HOME` set: `platforms;android-36`, `build-tools;35.0.0`, `platform-tools` (for `adb`)
 
-On macOS with Homebrew:
+**Full setup guide:** [docs/android-dev-setup-macos.md](docs/android-dev-setup-macos.md). It covers where each tool comes from, how to check downloads, a setup without Homebrew, Boox USB debugging, and uninstalling. The recommended path, in short:
 
 ```bash
+brew cat --cask temurin@21                # read the package definition first
+brew cat --cask android-commandlinetools
 brew install --cask temurin@21
 brew install --cask android-commandlinetools
-export ANDROID_HOME="$HOME/Library/Android/sdk"   # add to ~/.zshrc
-mkdir -p "$ANDROID_HOME"
-sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+```
+
+Add to `~/.zshrc`:
+
+```bash
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+export ANDROID_HOME="/opt/homebrew/share/android-commandlinetools"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+```
+
+Then:
+
+```bash
+sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 ```
 
 ## Develop
