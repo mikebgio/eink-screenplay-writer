@@ -44,7 +44,7 @@ The progress count in each ticket comes from its acceptance-criteria checkboxes 
 
 ```mermaid
 flowchart LR
-  T01["01 · Minimal working app on the tablet"]:::ready
+  T01["01 · Minimal working app on the tablet"]:::inprogress
   T02["02 · Typing-speed test and screen refresh control"]:::blocked
   T03["03 · Recognise every screenplay element"]:::blocked
   T04["04 · Open, save, autosave and recovery"]:::blocked
@@ -90,7 +90,7 @@ flowchart LR
 
 | | # | Ticket | Model | Blocked by | Criteria | State |
 |---|---|---|---|---|---|---|
-| [ ] | 01 | [Minimal working app on the tablet](tickets/01-walking-skeleton.md) | sonnet | — | 0/7 | 🟢 ready |
+| [ ] | 01 | [Minimal working app on the tablet](tickets/01-walking-skeleton.md) | sonnet | — | 5/7 | 🚧 in-progress |
 | [ ] | 02 | [Typing-speed test and screen refresh control](tickets/02-eink-refresh-and-latency-spike.md) | sonnet | 01 | 0/7 | ⛔ blocked |
 | [ ] | 03 | [Recognise every screenplay element](tickets/03-full-fountain-parsing.md) | sonnet | 01 | 0/8 | ⛔ blocked |
 | [ ] | 04 | [Open, save, autosave and recovery](tickets/04-storage-open-save-autosave.md) | sonnet | 01 | 0/7 | ⛔ blocked |

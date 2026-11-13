@@ -1,7 +1,7 @@
 ---
 id: 01
 title: Minimal working app on the tablet
-status: todo
+status: in-progress
 blocked_by: []
 model: sonnet
 ---
@@ -43,13 +43,13 @@ The thinnest end-to-end path through every layer. Opening the app on the Boox sh
 
 ## Acceptance criteria
 
-- [ ] `npm test`, `npm run typecheck` and `npm run lint` pass. The engine-purity lint rule fails if a DOM or Capacitor import is added inside `src/engine/` (prove this once, then remove the import).
-- [ ] At least 6 Vitest tests through the engine's public interface: parse classifies each of the 4 element types; paginate wraps a long action line at 60 characters and long dialogue at 35; a 200-line script produces more than one page.
-- [ ] `npm run dev` shows the editor and print view in a desktop browser; typing updates the page within about 200 ms.
-- [ ] Print view text is Courier Prime (loaded from the bundled font, never fetched from a network).
+- [x] `npm test`, `npm run typecheck` and `npm run lint` pass. The engine-purity lint rule fails if a DOM or Capacitor import is added inside `src/engine/` (prove this once, then remove the import).
+- [x] At least 6 Vitest tests through the engine's public interface: parse classifies each of the 4 element types; paginate wraps a long action line at 60 characters and long dialogue at 35; a 200-line script produces more than one page.
+- [x] `npm run dev` shows the editor and print view in a desktop browser; typing updates the page within about 200 ms.
+- [x] Print view text is Courier Prime (loaded from the bundled font, never fetched from a network).
 - [ ] `npm run apk` produces a debug APK. If the Android SDK or JDK isn't installed on this machine, stop at this step and write the exact install commands for the owner in the ticket's Handoff notes. Don't install system tools without asking.
 - [ ] (device) The APK installs and launches on the Note Air 6C and shows the sample script.
-- [ ] `README.md` documents building and sideloading.
+- [x] `README.md` documents building and sideloading.
 
 ## Out of scope
 
@@ -57,4 +57,32 @@ Real file I/O, other element types, page-break rules, theming, e-ink refresh con
 
 ## Handoff notes
 
-_(Fill in: anything later tickets must know, e.g. the exact engine type names you chose.)_
+**Status note:** `npm run apk` could NOT run here (no JDK, no Android SDK, no adb). The Android project is scaffolded (`android/`, app id `dev.personal.boox.screenplay`, name "Scriptwriter") and `cap sync` works. So the `npm run apk` criterion stays unticked and the status stays `in-progress` until the owner builds it. The `npm run dev` check was verified afterwards from the main session (editor + print view render, Courier Prime loaded, edit reaches the print view in 161 ms); `npm run build` succeeds and bundles all four Courier Prime TTFs into `dist/assets` (no network fetch). Debounce is 150 ms.
+
+**Owner install commands (macOS):**
+```bash
+brew install --cask temurin@21
+brew install --cask android-commandlinetools
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+mkdir -p "$ANDROID_HOME"
+sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+cd /Users/mgiordano/Repos/Personal/boox && npm run apk
+```
+Then tick the `npm run apk` criterion (APK at `android/app/build/outputs/apk/debug/app-debug.apk`).
+
+**Owner checks:** (device) APK installs and shows the sample script on the Note Air 6C; engine-purity proof was done once (a `@capacitor/core` import in `src/engine/` failed ESLint, a `document` reference failed `tsconfig.engine.json`; then removed).
+
+**Engine API (for tickets 02-15), all from `src/engine/index.ts`:**
+- `parse(text: string): ScriptDocument` where `ScriptDocument = { elements: ScriptElement[] }`, `ScriptElement = { type: ElementType; text: string; startLine: number; endLine: number }` (0-based, inclusive; multi-line text joined with `\n`). `ElementType = 'scene-heading' | 'action' | 'character' | 'dialogue'`. A forced `.` heading has the dot stripped from `text`. A scene heading followed directly by non-blank lines yields heading + action.
+- `paginate(doc: ScriptDocument): PagedScript` = `{ pages: Page[]; pageCount; width: 8.5; height: 11 }`; `Page = { number (1-based); lines: PositionedLine[] }`; `PositionedLine = { text; x; y (inches from top-left of paper); type; elementIndex }`. Constants exported from `paginate.ts`: `BODY_LINES_PER_PAGE=54`, `TOP_MARGIN_IN=1`, `LINES_PER_INCH=6`. Layout: scene heading/action x=1.5 width 60; dialogue x=2.5 width 35; character x=3.7. Also exported: `wrap(text, width)`. No `PageSpec` parameter yet (ticket 05/06 should add one).
+- Scene headings and character cues are NOT yet uppercased in output; no page numbers drawn; a blank row at page top is dropped.
+
+**Folder layout:** `src/engine/{types,parse,paginate,index}.ts`; `src/ui/{App,Editor,PrintView}.tsx`, `styles.css`, `sample.ts` (SAMPLE_SCRIPT); `src/platform/index.ts` (`isNative()`); `src/storage/` empty (`.gitkeep`); `src/main.tsx`; tests in `test/engine.test.ts` (10 tests, node env, `test/**/*.test.ts`); fixture `test/fixtures/sample.fountain`; `test/golden/` empty.
+
+**Quirks:**
+- `npm run typecheck` runs both `tsconfig.json` (DOM) and `tsconfig.engine.json` (no DOM, `types: []`).
+- Versions installed: Preact 11, Vite 8, Vitest 5, TypeScript 6, ESLint 10, Capacitor 8.
+- `~/.npm` cache is root-owned on this machine; use `npm_config_cache=<tmpdir>` or `sudo chown -R 501:20 ~/.npm`.
+- PrintView shows only page 1 (`pageIndex={0}`); page turning is ticket 05. `vite.config.ts` uses `base: './'` and `assetsInlineLimit: 0` so fonts are separate files.
+- Editor is uncontrolled: `initial` only used at mount (`Editor.tsx`); ticket 04 must add a way to replace the document.
