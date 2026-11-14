@@ -80,4 +80,6 @@ Revision marks, locked pages, A-pages (Phase 3).
 
 **Owner checks:** import the three files into Final Draft or Beat and compare page counts (more than 3% apart means a follow-up ticket; 3% is about 3 pages on these). I read every golden file by eye, but you may want to look at the files named `rule-*.txt`.
 
+**Review (PR #24):** fixed a dual pair taller than a page (now flows row by row), `(CONT'D)` detection (only the parenthesised extension counts, so `DISCONTD` is not mistaken for it) and `renderPageText` (sorts only within a row). Kept as designed, per the ticket: abbreviations like "Mr." count as sentence ends; the split is tried before the 1-line overrun (rule 6); a heading before `===` or at the end stays; only plain action splits (rule 5).
+
 **Known limitation:** `pageIndexForLine` still maps a cursor anywhere in an element that is split across two pages to the page where it starts (the print view does not track a source line per printed line).

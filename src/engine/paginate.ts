@@ -497,15 +497,33 @@ export function paginate(
   };
 
   /** Rule 7: columns side by side from the same row; the pair is as tall as the taller column. */
-  const emitDual = (b: Block) => {
+  const emitDual = (b: Block, flow = false) => {
+    const cols = b.columns!;
     const top = row;
-    let tallest = 0;
-    for (const col of b.columns!) {
-      row = top;
-      emitUnits(col);
-      tallest = Math.max(tallest, row - top);
+    const tallest = Math.max(unitRows(cols[0]), unitRows(cols[1]));
+    if (!flow) {
+      for (const col of cols) {
+        row = top;
+        emitUnits(col);
+      }
+      row = top + tallest;
+      return;
     }
-    row = top + tallest;
+    // Last resort for a pair taller than a page: continue row by row on the next page.
+    const flat = cols.map((c) => c.flatMap((u) => u.lines.map((w) => ({ u, w }))));
+    for (let r = 0; r < tallest; r++) {
+      if (row >= BODY) startNewPage();
+      for (const col of flat) {
+        const item = col[r];
+        if (item) {
+          const { u, w } = item;
+          page.lines.push(
+            makeLine(w, u.type, lineX(u.type, u.layout, w.text), row, u.el, u.styles),
+          );
+        }
+      }
+      row++;
+    }
   };
 
   /** Place `b` at the current row (after its blank line), whole. */
@@ -607,7 +625,7 @@ export function paginate(
         continue;
       }
       // Taller than a page and no rule can split it: break at a line as a last resort.
-      if (b.columns) emitDual(b);
+      if (b.columns) emitDual(b, true);
       else {
         emitSceneNumber(b);
         emitUnits(b.units, true);

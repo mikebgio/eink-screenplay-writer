@@ -641,6 +641,40 @@ describe('splitting keeps what the pieces mean', () => {
   });
 });
 
+describe('edge cases found in review', () => {
+  it('flows a dual-dialogue pair taller than a page onto the next page', () => {
+    const left = dlg('MARA', lines(28, 70, '.'));
+    const right = dlg('JOE ^', lines(28, 20, '.', 2));
+    const { doc, paged } = run(script(left, right));
+    checkInvariants(doc, paged);
+    expect(paged.pageCount).toBe(2);
+  });
+
+  it("does not mistake a name containing CONTD for a (CONT'D) cue", () => {
+    const { paged } = run(
+      script('INT. A - DAY', dlg('DISCONTD', 'Hi.'), 'Beat.', dlg('DISCONTD', 'Again.')),
+    );
+    const cues = paged.pages[0]!.lines.filter((l) => l.kind === 'character').map((l) => l.text);
+    expect(cues).toEqual(['DISCONTD', "DISCONTD (CONT'D)"]);
+  });
+
+  it('keeps invariants for a transition after a split tail at every vertical offset', () => {
+    const body = Array.from({ length: 14 }, (_, i) => speech(4, '.', i)).join(' ');
+    for (let k = 0; k < 56; k++) {
+      const { doc, paged } = run(script(action(k + 1), dlg('MARA', body), 'CUT TO:', action(2)));
+      checkInvariants(doc, paged);
+    }
+  });
+
+  it('leaves a heading before === or at the end of the script where it is', () => {
+    const a = run(script(action(51), 'INT. A - DAY', '===', action(2)));
+    checkInvariants(a.doc, a.paged);
+    const b = run(script(action(51), 'INT. A - DAY'));
+    checkInvariants(b.doc, b.paged);
+    expect(b.paged.pageCount).toBe(1);
+  });
+});
+
 describe('configuration', () => {
   it('exposes every rule constant in one object', () => {
     expect(PAGE_RULES.dual.left).toMatchObject({ cueIn: 3.0, dialogueIn: 1.5, widthChars: 28 });

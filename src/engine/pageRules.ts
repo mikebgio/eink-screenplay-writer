@@ -83,9 +83,10 @@ export function endsSentence(text: string): boolean {
   return last !== undefined && (last.index ?? 0) + last[0].length === t.length;
 }
 
-/** Rule 4/5: a cue that already says `CONT'D` (any case, with or without the apostrophe) is left alone. */
+/** Rule 4/8: a cue that already says `CONT'D` (any case, with or without the apostrophe) is left alone. */
 export function hasContd(cue: string): boolean {
-  return /CONT'?D/i.test(cue.replace(/[‘’]/g, "'"));
+  // Only the parenthesised extension counts, so a name like DISCONTD is not mistaken for it.
+  return /\([^)]*\bCONT['\u2019]?D\b[^)]*\)/i.test(cue);
 }
 
 /** Rule 4/8: `NAME (V.O.)` → `NAME (V.O.) (CONT'D)`; unchanged when it already says CONT'D. */
