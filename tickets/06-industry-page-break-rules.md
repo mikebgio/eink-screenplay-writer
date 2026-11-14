@@ -1,7 +1,7 @@
 ---
 id: 06
 title: Industry page-break rules
-status: todo
+status: done
 blocked_by: [05]
 model: sonnet
 ---
@@ -41,11 +41,11 @@ Terms: a *dialogue block* is a character cue, then any parentheticals and dialog
 
 ## Acceptance criteria
 
-- [ ] Golden fixtures exist and have been reviewed by eye for: 1 (heading at page bottom), 2 (cue at bottom), 3 (parenthetical at the break), 4 (dialogue split at a sentence: MORE/CONT'D; extension kept; no sentence boundary → moved whole; fewer than 2 lines → moved whole), 5 (action split and moved whole), 6 (transition), 7 (dual dialogue fits; dual dialogue moved whole), 8 (CONT'D added; not added after a different character speaks; not added across scenes; not doubled; switched off by the option), 9 (scene numbers sequential and forced), 10, 11.
-- [ ] Rule constants (indents, widths, minimum split lines) are in one exported config object.
-- [ ] A 120-page benchmark still paginates in under 50 ms, or in a worker.
-- [ ] A **page-count check:** take 3 scripts that are free to use (write your own sample scripts or use the Fountain project's own samples, keeping the licence notes), paginate them, and record the page counts in Handoff notes. The owner will compare with Final Draft or Beat output; a difference of more than 3% gets a follow-up ticket.
-- [ ] The print view and the earlier golden tests are updated, and the changes to old goldens have been reviewed.
+- [x] Golden fixtures exist and have been reviewed by eye for: 1 (heading at page bottom), 2 (cue at bottom), 3 (parenthetical at the break), 4 (dialogue split at a sentence: MORE/CONT'D; extension kept; no sentence boundary → moved whole; fewer than 2 lines → moved whole), 5 (action split and moved whole), 6 (transition), 7 (dual dialogue fits; dual dialogue moved whole), 8 (CONT'D added; not added after a different character speaks; not added across scenes; not doubled; switched off by the option), 9 (scene numbers sequential and forced), 10, 11.
+- [x] Rule constants (indents, widths, minimum split lines) are in one exported config object.
+- [x] A 120-page benchmark still paginates in under 50 ms, or in a worker.
+- [x] A **page-count check:** take 3 scripts that are free to use (write your own sample scripts or use the Fountain project's own samples, keeping the licence notes), paginate them, and record the page counts in Handoff notes. The owner will compare with Final Draft or Beat output; a difference of more than 3% gets a follow-up ticket.
+- [x] The print view and the earlier golden tests are updated, and the changes to old goldens have been reviewed.
 
 ## Out of scope
 
@@ -53,4 +53,33 @@ Revision marks, locked pages, A-pages (Phase 3).
 
 ## Handoff notes
 
-_(Fill in: the page counts for the reference scripts, and any rule ambiguities you settled.)_
+**API:** `paginate(doc, spec = US_LETTER, options?: Partial<PaginateOptions>)` with `PaginateOptions = { autoContd: boolean (default true); sceneNumbers: 'off' | 'both' (default 'off') }`. All rule numbers live in the exported `PAGE_RULES` object (`src/engine/pageRules.ts`: indents, widths, `minSplitLines`, `transitionOverrunLines`, the dual-dialogue columns, scene-number margins). `pageRules.ts` also holds the small pure helpers (`findSentenceBreaks`, `endsSentence`, `withContd`, `assignSceneNumbers`, `contdFlags`); the placement loop is in `paginate.ts` (`planSplit`, `placeBlock`, `placeTransition`, `keepsCompany`). The UI calls `paginate(doc)` with the defaults, so (CONT'D) is on and scene numbers off; there is no settings UI for the options yet (ticket 15 can wire it).
+
+**Output changes:** two new `LineKind`s: `'more'` (the `(MORE)` line, x = 3.7 in, `elementIndex` of the last dialogue element on the page) and `'scene-number'` (two lines per numbered heading, on the heading's first row, same `elementIndex` as the heading). A repeated cue `NAME (CONT'D)` keeps the original cue's `elementIndex`. `renderPageText` now sorts a row's lines by x so side-by-side columns render correctly.
+
+**Settled ambiguities (all covered by tests):**
+
+- Rule 4 counts only dialogue lines (not the cue or parentheticals) for the "2 stay / 2 move" minimum, and `(MORE)` takes one of the page's rows. The end of a dialogue element is a valid split point if its text ends with `.?!…`+closing quote/bracket (so a block can break between a dialogue and the parenthetical after it). Rule 3 follows from that: the first half can never end on a parenthetical. The sentence test is purely lexical: "Mr. Smith" counts as a boundary.
+- A split happens inside a printed line when the sentence ends there; the second half is re-wrapped from column 0.
+- Rule 6: the transition pulls over the *smallest* tail that is a valid split (at least 2 lines), which can be more than 2 lines when sentences are long. If no split is possible, it stays at the bottom if `row + lines <= bodyLines + 1` (its blank line is dropped first if that is what it takes); otherwise it goes alone to the next page. A transition straight after `===` is alone at the top by design.
+- Rule 1: a heading is kept only if the next block would put something on the page: at least 2 lines (valid split), or the whole element if it fits. It chains (heading, heading, action). A heading followed by `===` or the end of the script is left alone.
+- Rule 8: needs at least one action between the two speeches; any heading, transition, centered, lyric or dual dialogue resets it; `===` and unprinted notes/sections do not. Characters are compared by identity (name without extension), so `MARA (V.O.)` then `MARA` counts as the same speaker. Output is `NAME (V.O.) (CONT'D)`. Not added if the source cue already contains `CONT'D`.
+- Rule 7: the ticket gave cue/dialogue positions and a width of 28; I also chose parentheticals at 2.1 in (left) and 5.1 in (right) with width 20, and a cue wrap width of 20 (so a right-hand cue stays on the paper). All of these are in `PAGE_RULES.dual`. A dual pair taller than a page is not split (last resort: it starts at the top and runs off).
+- A block taller than a page still splits by the rules when it can, otherwise at a line boundary (no `(MORE)`).
+- Rule 10: `===` when the page is already empty does nothing, so no blank pages.
+
+**Tests:** `test/pagebreaks.test.ts` has a golden per rule (`test/golden/pagebreaks/`, 24 files), explicit assertions on each, and 60 seeded random scripts that check the invariants (no content lost or reordered, rows in range, no heading/cue/parenthetical last on a page, `(MORE)` always followed by a `(CONT'D)` cue, no transition alone at the top except after `===`). The ticket 05 goldens did not change. Performance: 126 pages in about 4 ms.
+
+**Page counts** (US Letter, defaults; generated for this project by a script, so there are no licence constraints, in `test/fixtures/page-count/`; asserted by the tests):
+
+| Script | Pages |
+| --- | --- |
+| `dialogue-heavy.fountain` | 105 |
+| `action-heavy.fountain` | 83 |
+| `mixed.fountain` | 104 |
+
+**Owner checks:** import the three files into Final Draft or Beat and compare page counts (more than 3% apart means a follow-up ticket; 3% is about 3 pages on these). I read every golden file by eye, but you may want to look at the files named `rule-*.txt`.
+
+**Review (PR #24):** fixed a dual pair taller than a page (now flows row by row), `(CONT'D)` detection (only the parenthesised extension counts, so `DISCONTD` is not mistaken for it) and `renderPageText` (sorts only within a row). Kept as designed, per the ticket: abbreviations like "Mr." count as sentence ends; the split is tried before the 1-line overrun (rule 6); a heading before `===` or at the end stays; only plain action splits (rule 5).
+
+**Known limitation:** `pageIndexForLine` still maps a cursor anywhere in an element that is split across two pages to the page where it starts (the print view does not track a source line per printed line).

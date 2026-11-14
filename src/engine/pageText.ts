@@ -1,6 +1,6 @@
 import { displayPages } from './locate';
 import { CHARS_PER_INCH } from './paginate';
-import type { Page, PagedScript } from './types';
+import type { Page, PagedScript, PositionedLine } from './types';
 
 /**
  * Plain-text picture of one page for golden files and debugging: a `=== PAGE n ===` header, then each
@@ -8,11 +8,15 @@ import type { Page, PagedScript } from './types';
  * rows above the first body line.
  */
 export function renderPageText(page: Page): string {
+  const byRow = new Map<number, PositionedLine[]>();
+  for (const l of page.lines) (byRow.get(l.yLine) ?? byRow.set(l.yLine, []).get(l.yLine)!).push(l);
   const rows = new Map<number, string>();
-  for (const l of page.lines) {
-    const col = Math.round(l.xIn * CHARS_PER_INCH);
-    const cur = (rows.get(l.yLine) ?? '').padEnd(col, ' ');
-    rows.set(l.yLine, cur + l.text);
+  for (const [y, ls] of byRow) {
+    // Lines sharing a row (dual columns, scene numbers) are drawn left to right.
+    if (ls.length > 1) ls.sort((a, b) => a.xIn - b.xIn);
+    let cur = '';
+    for (const l of ls) cur = cur.padEnd(Math.round(l.xIn * CHARS_PER_INCH), ' ') + l.text;
+    rows.set(y, cur);
   }
   const ys = [...rows.keys()];
   const out = [`=== PAGE ${page.number} ===`];
