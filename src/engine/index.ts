@@ -1,5 +1,7 @@
 export { parse, classifyLines, titlePageLayout, findSpans } from './parse';
 export { paginate, wrap, formatRunningTime, US_LETTER, A4, LINES_PER_INCH } from './paginate';
+export { PAGE_RULES, DEFAULT_PAGINATE_OPTIONS } from './pageRules';
+export type { PaginateOptions } from './pageRules';
 export { displayPages, pageIndexForLine, sourceLineOf } from './locate';
 export { diff, diffStats, diffRows, COLLAPSE_OVER } from './diff';
 export type { Hunk, DiffRow } from './diff';

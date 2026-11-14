@@ -9,7 +9,7 @@ import type { Page, PagedScript } from './types';
  */
 export function renderPageText(page: Page): string {
   const rows = new Map<number, string>();
-  for (const l of page.lines) {
+  for (const l of [...page.lines].sort((a, b) => a.xIn - b.xIn)) {
     const col = Math.round(l.xIn * CHARS_PER_INCH);
     const cur = (rows.get(l.yLine) ?? '').padEnd(col, ' ');
     rows.set(l.yLine, cur + l.text);
