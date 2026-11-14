@@ -1,27 +1,20 @@
 /**
- * Exchange formats on the storage side (ticket 10): turning a script's text into an FDX or a clean
- * Fountain file, saving it, and converting an opened `.fdx` into a new `.fountain`. No Capacitor or DOM
- * imports; everything goes through the storage port, so it is tested with `MemoryStorage`.
+ * Exchange formats on the storage side (ticket 10): turning a script's text into an FDX or a Fountain
+ * file, and converting an opened `.fdx` into a new `.fountain`. No Capacitor or DOM imports; everything
+ * goes through the storage port, so it is tested with `MemoryStorage`.
  *
- * Ticket 09's export dialog calls `exportFdxText` and `exportFountainText` from its format entries and
- * does its own saving; `saveTextExport` is what the interim menu (`src/ui/ExchangeMenu.tsx`) uses.
+ * The export dialog's `FDX_FORMAT` and `FOUNTAIN_FORMAT` (`src/ui/exportFormats.ts`) call
+ * `exportFdxText` and `exportFountainText`; the dialog does the saving.
  */
 import { exportFdx, importFdx, parse, resolve, toFountain } from '../engine';
 import type { FileRef, StoragePort } from './port';
 
 export const isFdxName = (name: string): boolean => /\.fdx$/i.test(name);
 
-/**
- * `Script.fountain` → `Script.fdx`. A name with no extension just gets one. `filled` marks the
- * Fountain copy that has its variables filled in, so it isn't mistaken for the working file.
- */
-export function exchangeFileName(
-  scriptName: string,
-  extension: 'fdx' | 'fountain',
-  opts: { filled?: boolean } = {},
-): string {
+/** `Script.fdx` → `Script.fountain` (and back). A name with no extension just gets one. */
+export function exchangeFileName(scriptName: string, extension: 'fdx' | 'fountain'): string {
   const base = scriptName.replace(/\.(fountain|txt|fdx)$/i, '').trim() || 'Script';
-  return `${base}${opts.filled ? ' (values filled in)' : ''}.${extension}`;
+  return `${base}.${extension}`;
 }
 
 export interface FdxExportOptions {
@@ -37,21 +30,15 @@ export function exportFdxText(text: string, opts: FdxExportOptions = {}): string
   return exportFdx(doc, { sceneNumbers: opts.sceneNumbers });
 }
 
-/** A clean `.fountain` copy: values filled in, no `Var-` lines and no `{{`. */
-export function exportFountainText(text: string): string {
-  return toFountain(parse(text), { dropVariables: true });
-}
-
-/** Asks where to save and writes `text` there; null if the writer cancels. */
-export async function saveTextExport(
-  storage: StoragePort,
-  suggestedName: string,
+/**
+ * A `.fountain` copy of a script: values filled in and no `Var-` lines or `{{` unless `variables` is
+ * `keep`, which writes the script as it is.
+ */
+export function exportFountainText(
   text: string,
-): Promise<FileRef | null> {
-  const ref = await storage.pickCreate(suggestedName);
-  if (!ref) return null;
-  await storage.write(ref, text);
-  return ref;
+  opts: { variables?: 'fill' | 'keep' } = {},
+): string {
+  return toFountain(parse(text), { dropVariables: opts.variables !== 'keep' });
 }
 
 /**

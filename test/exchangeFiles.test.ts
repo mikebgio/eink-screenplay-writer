@@ -7,9 +7,16 @@ import {
   exportFountainText,
   importFdxFile,
   isFdxName,
-  saveTextExport,
 } from '../src/storage/exchange';
 import { MemoryStorage } from '../src/storage/memory';
+import { suggestedExportName } from '../src/storage/exportFile';
+import { EXPORT_FORMATS, FDX_FORMAT, FOUNTAIN_FORMAT, formatById } from '../src/ui/exportFormats';
+import {
+  DEFAULT_EXPORT_OPTIONS,
+  blockingKeys,
+  type ExportContext,
+  type ExportOptions,
+} from '../src/ui/exportOptions';
 
 const FDX = readFileSync(new URL('./fixtures/fdx/final-draft.fdx', import.meta.url), 'utf8');
 
@@ -28,12 +35,6 @@ describe('file names', () => {
     expect(exchangeFileName('Draft 2.final.fountain', 'fdx')).toBe('Draft 2.final.fdx');
     expect(exchangeFileName('', 'fdx')).toBe('Script.fdx');
     expect(exchangeFileName('Script.fdx', 'fountain')).toBe('Script.fountain');
-  });
-
-  it('marks the values-filled-in copy so it is not mistaken for the working file', () => {
-    expect(exchangeFileName('Script.fountain', 'fountain', { filled: true })).toBe(
-      'Script (values filled in).fountain',
-    );
   });
 });
 
@@ -59,22 +60,6 @@ describe('export text', () => {
     expect(parse(out).elements.map((e) => e.type)).toEqual(
       parse(script).elements.map((e) => e.type),
     );
-  });
-});
-
-describe('saveTextExport', () => {
-  it('writes the text to the file the writer picks', async () => {
-    const storage = new MemoryStorage();
-    storage.nextCreate = { uri: 'mem://out/Script.fdx', name: 'Script.fdx' };
-    const ref = await saveTextExport(storage, 'Script.fdx', '<x/>');
-    expect(ref?.name).toBe('Script.fdx');
-    expect(storage.files.get('mem://out/Script.fdx')).toBe('<x/>');
-  });
-
-  it('writes nothing when the picker is cancelled', async () => {
-    const storage = new MemoryStorage();
-    expect(await saveTextExport(storage, 'Script.fdx', '<x/>')).toBeNull();
-    expect(storage.files.size).toBe(0);
   });
 });
 
@@ -115,5 +100,46 @@ describe('importFdxFile', () => {
     storage.nextCreate = { uri: 'mem://out/Bom.fountain', name: '' };
     expect(await importFdxFile(storage, source)).not.toBeNull();
     expect(storage.files.get('mem://out/Bom.fountain')).toBe(importFdx(FDX));
+  });
+});
+
+describe('export dialog formats', () => {
+  const script = 'Title: T\nVar-HERO: Jack\n\nINT. A - DAY\n\n{{HERO}} waits.\n\nINT. B - DAY';
+  const ctx = (options: Partial<ExportOptions> = {}): ExportContext => ({
+    text: script,
+    options: { ...DEFAULT_EXPORT_OPTIONS, ...options },
+    now: new Date('2026-11-14T10:00:00Z'),
+    fonts: () => Promise.reject(new Error('text formats never load fonts')),
+  });
+
+  it('lists PDF first, then FDX and Fountain', () => {
+    expect(EXPORT_FORMATS.map((f) => f.id)).toEqual(['pdf', 'fdx', 'fountain']);
+    expect(formatById('fdx')).toBe(FDX_FORMAT);
+  });
+
+  it('FDX follows the variables and scene-number options', async () => {
+    const fill = (await FDX_FORMAT.run(ctx())) as string;
+    expect(fill).toContain('Jack waits.');
+    expect(fill).not.toContain('Number=');
+    expect(await FDX_FORMAT.run(ctx({ variables: 'keep' }))).toContain('{{HERO}} waits.');
+    expect(await FDX_FORMAT.run(ctx({ sceneNumbers: 'both' }))).toContain('Number="2"');
+  });
+
+  it('Fountain fills values in, or keeps the script as written', async () => {
+    const fill = (await FOUNTAIN_FORMAT.run(ctx())) as string;
+    expect(fill).toContain('Jack waits.');
+    expect(fill).not.toMatch(/Var-|\{\{/);
+    const keep = (await FOUNTAIN_FORMAT.run(ctx({ variables: 'keep' }))) as string;
+    expect(keep).toContain('Var-HERO: Jack');
+    expect(keep).toContain('{{HERO}} waits.');
+  });
+
+  it('gates undefined variables for both formats, and names files from the title', () => {
+    for (const f of [FDX_FORMAT, FOUNTAIN_FORMAT]) {
+      expect(blockingKeys(['X'], ctx().options, f.controls, false)).toEqual(['X']);
+      expect(suggestedExportName('Big Fish', ctx().now, f.extension)).toMatch(
+        /^Big Fish – 2026-11-14\.(fdx|fountain)$/,
+      );
+    }
   });
 });

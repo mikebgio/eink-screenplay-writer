@@ -1,4 +1,5 @@
 import { exportPdf, paginate, parse, resolve, A4, US_LETTER } from '../engine';
+import { exportFdxText, exportFountainText } from '../storage/exchange';
 import type { ExportContext, ExportControl } from './exportOptions';
 
 /**
@@ -26,7 +27,9 @@ export const PDF_FORMAT: ExportFormat = {
   mime: 'application/pdf',
   controls: ['paper', 'sceneNumbers', 'variables', 'watermark', 'titlePage'],
   async run({ text, options, now, fonts }) {
-    const resolved = resolve(parse(text), { mode: options.variables === 'keep' ? 'keep' : 'resolve' });
+    const resolved = resolve(parse(text), {
+      mode: options.variables === 'keep' ? 'keep' : 'resolve',
+    });
     const paged = paginate(resolved.doc, options.paper === 'a4' ? A4 : US_LETTER, {
       sceneNumbers: options.sceneNumbers,
     });
@@ -39,11 +42,36 @@ export const PDF_FORMAT: ExportFormat = {
   },
 };
 
+export const FDX_FORMAT: ExportFormat = {
+  id: 'fdx',
+  label: 'Final Draft (FDX)',
+  extension: 'fdx',
+  mime: 'application/xml',
+  controls: ['sceneNumbers', 'variables'],
+  async run({ text, options }) {
+    return exportFdxText(text, {
+      sceneNumbers: options.sceneNumbers === 'both',
+      variables: options.variables,
+    });
+  },
+};
+
+export const FOUNTAIN_FORMAT: ExportFormat = {
+  id: 'fountain',
+  label: 'Fountain',
+  extension: 'fountain',
+  mime: 'text/plain',
+  controls: ['variables'],
+  async run({ text, options }) {
+    return exportFountainText(text, { variables: options.variables });
+  },
+};
+
 /**
- * The formats the dialog offers, in order. To add one (ticket 10: FDX, Fountain), write an
- * `ExportFormat` in its own file and list it here; nothing else in the dialog changes.
+ * The formats the dialog offers, in order. To add one, write an `ExportFormat` in its own file and list
+ * it here; nothing else in the dialog changes.
  */
-export const EXPORT_FORMATS: readonly ExportFormat[] = [PDF_FORMAT];
+export const EXPORT_FORMATS: readonly ExportFormat[] = [PDF_FORMAT, FDX_FORMAT, FOUNTAIN_FORMAT];
 
 export function formatById(id: string): ExportFormat {
   return EXPORT_FORMATS.find((f) => f.id === id) ?? EXPORT_FORMATS[0]!;

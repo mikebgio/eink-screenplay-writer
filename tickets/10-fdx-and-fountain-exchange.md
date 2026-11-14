@@ -67,14 +67,14 @@ Revision data in FDX, ScriptNotes beyond the optional extra above, other formats
 
 ## Handoff notes
 
-**Status:** every criterion is ticked except the (manual) one. Checked in the dev-server browser pane on 2026-11-14 with stubbed file pickers: opening an `.fdx` from the start screen asked for a `.fountain` name (`Script.fountain`), wrote the converted text and opened it in the editor; the interim menu then saved `Script.fdx` and `Script (values filled in).fountain`.
+**Status:** every criterion is ticked except the (manual) one. FDX and Fountain are formats in 09's export dialog (Ctrl+E, or the **Export** button). Checked in the dev-server browser pane on 2026-11-14 with stubbed file pickers (before 09 merged, with an interim menu that has since been removed): opening an `.fdx` from the start screen asked for a `.fountain` name (`Script.fountain`), wrote the converted text and opened it in the editor, and both exports saved. After rebasing onto 09 the dialog entries are covered by unit tests only (`test/exchangeFiles.test.ts`, 'export dialog formats'); I did not re-run the dialog in the browser.
 
 ### Engine API (`src/engine`, all exported from the index)
 
 - `exportFdx(resolved: ResolvedDocument, opts?: { sceneNumbers?: boolean }): string`. `ResolvedDocument` is a new alias for `ScriptDocument` (what `resolve(...).doc` returns). With `sceneNumbers` every scene heading gets `Number`: a forced `#12A#` as written, the rest numbered by `assignSceneNumbers` (the same rule as the print view).
 - `importFdx(xml: string): string` returns Fountain. Throws `Error('This is not a Final Draft (.fdx) file.')` for anything that isn't well-formed XML with a `FinalDraft` root, so callers can show `e.message`.
 - `toFountain(doc, { dropVariables }): string`. `false` writes the document as it is (`Var-` lines and `{{KEY}}` kept). `true` is the clean copy: a document that still has `Var-` entries is **resolved first**, so `toFountain(parse(x), { dropVariables: true })` and `toFountain(resolve(parse(x)).doc, { dropVariables: true })` give the same text. Any `{{` left over (an undefined key, or an escaped literal that `resolve` already unescaped) is written as `\{{`, so no unescaped `{{` ever appears.
-- `src/storage/exchange.ts` (no Capacitor or DOM): `exportFdxText(text, { sceneNumbers?, variables?: 'fill' | 'keep' })` and `exportFountainText(text)` take the script text as written, so they are the whole body of an export format's `run`. Also `exchangeFileName(name, 'fdx' | 'fountain', { filled? })`, `isFdxName`, `saveTextExport(storage, name, text)` and `importFdxFile(storage, ref)`.
+- `src/storage/exchange.ts` (no Capacitor or DOM): `exportFdxText(text, { sceneNumbers?, variables?: 'fill' | 'keep' })` and `exportFountainText(text, { variables?: 'fill' | 'keep' })` take the script text as written, so they are the whole body of an export format's `run`. `exportFountainText` fills values in and drops `Var-` lines by default; `variables: 'keep'` writes the script as it is. Also `exchangeFileName(name, 'fdx' | 'fountain')`, `isFdxName` and `importFdxFile(storage, ref)`.
 - `writeFountain` and `markEmphasis` (`src/engine/fountainOut.ts`) are shared by `toFountain` and the importer; they are not exported from the index.
 
 ### How the Fountain writer stays lossless
@@ -90,38 +90,18 @@ Revision data in FDX, ScriptNotes beyond the optional extra above, other formats
 - **Title page, a best guess** (the ticket asked for one): paragraphs are grouped by alignment, separated by empty paragraphs. The first centred group is `Title` (several lines allowed); the next centred group that contains "by" or "written" is `Credit`; then `Author`, then `Source`; further centred groups go to `Notes`. Right-aligned text is `Draft date`. Left-aligned groups: with a right-aligned group they are all `Contact`; otherwise one group is `Contact`, two are `Draft date` and `Contact`, three or more are `Copyright` (the extras), `Draft date`, `Contact`, which matches Final Draft's own template. A left-aligned block that starts with `©`, `(c)` or `Copyright` is `Copyright` wherever it sits. Export writes Title, Credit, Author, Source and Notes centred, `Copyright` and `Contact` left-aligned and `Draft date` right-aligned; all eight round trip as long as Title to Source are present (Notes is read as "a fifth centred block") and Copyright starts as above. Custom keys are not exported, and `Var-` keys never are.
 - **Export:** paragraphs have no `Number` unless asked; title-page paragraphs have no `Type` (as in Final Draft's own files). Version is `5`.
 
-### For ticket 09 (the export dialog is not on `main` yet)
+### The export dialog (ticket 09, merged)
 
-I read 09's work in progress (`src/ui/exportFormats.ts`) but have not built on it. What is on this branch instead is **interim and isolated**: `src/ui/ExchangeMenu.tsx` (two buttons and an "FDX scene numbers" checkbox, no shortcut so it can't clash with Ctrl+E), one `<ExchangeMenu … />` line in `App.tsx` next to the save status, and a small CSS block at the end of `styles.css` (it also lets `.doc-bar` wrap). It saves text through `storage.pickCreate` + `storage.write`.
+`FDX_FORMAT` and `FOUNTAIN_FORMAT` are in `src/ui/exportFormats.ts` next to `PDF_FORMAT`, listed as `EXPORT_FORMATS = [PDF_FORMAT, FDX_FORMAT, FOUNTAIN_FORMAT]` (PDF stays the default). Nothing else in the dialog changed.
 
-**What remains once 09 is merged** (about ten lines):
-
-1. Add two `ExportFormat` entries and list them in `EXPORT_FORMATS`:
-   ```ts
-   export const FDX_FORMAT: ExportFormat = {
-     id: 'fdx', label: 'Final Draft (FDX)', extension: 'fdx', mime: 'application/xml',
-     controls: ['sceneNumbers', 'variables'],
-     async run({ text, options }) {
-       return exportFdxText(text, {
-         sceneNumbers: options.sceneNumbers === 'both',
-         variables: options.variables === 'keep' ? 'keep' : 'fill',
-       });
-     },
-   };
-   export const FOUNTAIN_FORMAT: ExportFormat = {
-     id: 'fountain', label: 'Fountain (values filled in)', extension: 'fountain', mime: 'text/plain',
-     controls: ['variables'],            // Fill mode only: the copy always has the values in
-     async run({ text }) { return exportFountainText(text); },
-   };
-   ```
-   (`exportFdxText` and `exportFountainText` are from `src/storage/exchange.ts`; check the option names against 09's final `ExportOptions`.) With Fountain the `variables` control is only there for the undefined-key gate; if 09 lets a format hide the Keep choice, hide it for this one, because a Fountain copy with `{{KEY}}` kept is not what "values filled in" means.
-2. Delete `src/ui/ExchangeMenu.tsx`, its import and element in `App.tsx`, and the `.exchange-menu` CSS (keep `.doc-bar { flex-wrap: wrap }` if the toolbar is still crowded).
-3. `suggestedExportName` (09) names files `<title> – <date>.<ext>`; `exchangeFileName` here (`Script.fdx`, `Script (values filled in).fountain`) is only for the interim menu and the import.
-4. `.fdx` saving needs 09's `pickCreate`, which picks the file type from the extension. Until then Chrome's save picker is limited to `.fountain` / `.txt`, and Android's `text/plain` create intent may append `.txt` to `Script.fdx`. Also check the Android open picker offers `.fdx` (it uses `*/*`, so it should).
+- **FDX** (`id: 'fdx'`, `application/xml`): controls `sceneNumbers` and `variables`. "Both sides" scene numbers writes a `Number` on every scene heading; Fill / Keep is passed straight through. It also gets 09's undefined-variable warning and [Define] / "Export anyway" gate in Fill mode.
+- **Fountain** (`id: 'fountain'`, `text/plain`): control `variables`. Fill (default) is the clean copy with values in, no `Var-` lines and no `{{`; Keep writes the script as it is, `Var-` lines and `{{KEY}}` included. The label is plain "Fountain" because Keep makes it a straight copy.
+- File names come from 09's `suggestedExportName` (`<title> – <date>.fdx`); the old "values filled in" suffix is gone along with the interim menu. The interim `ExchangeMenu`, its CSS and `saveTextExport` are deleted.
+- `.fdx` saving uses 09's `pickCreate`, which picks the file type from the extension and handles the Android `mimeType`, so the earlier caveat about Chrome's `.fountain` / `.txt`-only picker and Android appending `.txt` no longer applies. Those native paths are still unrun (see 09's Owner checks).
 
 **Open with FDX (done, in `App.tsx`):** `openFile` now calls `openPicked`, which sends an `.fdx` through `importFdxFile` (read, convert, ask where to save the `.fountain`, write, open) and anything else straight to `openRef`. Conversion happens before the save picker, so a bad file creates nothing. Not wired: workspace and recent lists only show `.fountain` and `.txt`, so an `.fdx` can only be opened with **Open file**; in Chrome the open picker is filtered to `.fountain` / `.txt`, so pick "All files" to see `.fdx`.
 
 **Owner checks:**
 - (manual) Open an exported `.fdx` in Final Draft, Fade In or Highland on the Mac and confirm scene headings, action, cues, parentheticals, dialogue, transitions, centred text, a lyric, dual dialogue, bold/italic/underline, a page break and the title page all look right. Please also say how multi-line action looks (newlines inside one `<Text>`).
 - (manual) Open a real `.fdx` of your own through **Open file** and read the converted Fountain, especially the title page guess.
-- (device) On the Boox, open an `.fdx` from Drive or local storage and save the converted file; saving `.fdx` / `.fountain` exports needs 09's picker change (above).
+- (device) On the Boox, open an `.fdx` from Drive or local storage and save the converted file; also save an FDX and a Fountain export from the Export dialog (09's native save path is unrun).
