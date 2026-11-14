@@ -17,6 +17,8 @@ export interface DrawerProps {
   onDelete: (key: string, uses: 'inline' | 'undefine') => void;
   onJump: (use: VariableUse) => void;
   onClose: () => void;
+  /** Opens the "add a value" row for an undefined key (the export dialog's [Define]); a new `seq` re-triggers it. */
+  focus?: { key: string; seq: number };
 }
 
 function ValueField({
@@ -168,6 +170,11 @@ function AddRow({
   const [key, setKey] = useState(initialKey);
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const valueInput = useRef<HTMLInputElement>(null);
+  // A key handed in (from "Add" or the export dialog) leaves only the value to type.
+  useEffect(() => {
+    if (initialKey) valueInput.current?.focus();
+  }, [initialKey]);
   return (
     <div class="var-row">
       <div class="var-line">
@@ -179,6 +186,7 @@ function AddRow({
           onInput={(e) => setKey(e.currentTarget.value.toUpperCase())}
         />
         <input
+          ref={valueInput}
           type="text"
           aria-label="Value"
           placeholder="Value"
@@ -207,7 +215,11 @@ function AddRow({
 }
 
 export function VariableDrawer(props: DrawerProps) {
-  const [adding, setAdding] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(props.focus?.key ?? null);
+  const focusSeq = props.focus?.seq;
+  useEffect(() => {
+    if (props.focus) setAdding(props.focus.key);
+  }, [focusSeq]);
   const undef = props.diagnostics.filter((d) => d.kind === 'undefined');
   const add = (key: string, value: string): DrawerResult => {
     if (props.variables.some((v) => v.key === key)) return `${key} already exists`;

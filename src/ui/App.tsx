@@ -44,6 +44,9 @@ import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList'
 import { StartScreen } from './StartScreen';
 import { commands, registerCommand } from './commands';
 import { ShortcutHelp } from './ShortcutHelp';
+import { ExportDialog } from './ExportDialog';
+import { EXPORT_FORMATS } from './exportFormats';
+import { exportOptionsKey, parseExportOptions, type ExportOptions } from './exportOptions';
 
 const DEBOUNCE_MS = 150;
 
@@ -87,6 +90,14 @@ export function App() {
   const hasDoc = useRef(false);
   hasDoc.current = current !== null;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerFocus, setDrawerFocus] = useState<{ key: string; seq: number }>();
+  const [exportState, setExportState] = useState<{
+    options: ExportOptions;
+    undefinedKeys: string[];
+    title: string;
+  } | null>(null);
+  const currentRef = useRef<FileRef | null>(null);
+  currentRef.current = current;
   const [titleForm, setTitleForm] = useState<ReturnType<typeof titleValues> | null>(null);
 
   // E-ink refresh policy and the hidden typing-latency panel (Ctrl+Shift+D / long-press the name).
@@ -150,6 +161,35 @@ export function App() {
     const t = setTimeout(() => setToast(null), 6000);
     return () => clearTimeout(t);
   }, [toast]);
+  /** Opens the export dialog with this document's remembered options, or closes it if it is open. */
+  const exportOpenRef = useRef(false);
+  exportOpenRef.current = exportState !== null;
+  const toggleExport = async () => {
+    if (exportOpenRef.current) return setExportState(null);
+    const ref = currentRef.current;
+    const h = editor.current;
+    if (!ref || !h) return;
+    const text = h.getText();
+    const raw = await preferencesStore.get(exportOptionsKey(ref.uri)).catch(() => null);
+    const undefinedKeys = [
+      ...new Set(
+        resolve(parse(text), { mode: 'resolve' })
+          .diagnostics.filter((d) => d.kind === 'undefined')
+          .map((d) => d.key),
+      ),
+    ];
+    const title =
+      titleValues(text)
+        .title.replace(/[*_]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim() || ref.name.replace(/\.[^.]+$/, '');
+    setExportState({
+      options: parseExportOptions(raw, EXPORT_FORMATS.map((f) => f.id)),
+      undefinedKeys,
+      title,
+    });
+  };
+
   // Shortcuts: every command is registered centrally (see commands.ts); the handlers read the latest
   // state through `actions`, so the registrations below happen once.
   const [helpOpen, setHelpOpen] = useState(false);
@@ -162,6 +202,7 @@ export function App() {
     help(): void;
     debug(): void;
     find(replace: boolean): void;
+    export(): void;
   }>(undefined as never);
   actions.current = {
     save: () => void session.save().catch((e) => setError(e instanceof Error ? e.message : String(e))),
@@ -176,6 +217,7 @@ export function App() {
     help: () => setHelpOpen((o) => !o),
     debug: () => setDebugOpen((o) => !o),
     find: (replace) => void editor.current?.openFind(replace),
+    export: () => void toggleExport(),
   };
   useEffect(() => {
     const doc = { enabled: () => hasDoc.current };
@@ -188,6 +230,7 @@ export function App() {
       registerCommand({ id: 'debug.toggle', label: 'Typing-latency panel', keys: 'Ctrl+Shift+D', run: () => actions.current.debug() }),
       registerCommand({ id: 'title.form', label: 'Title page', keys: 'Ctrl+T', ...doc, run: () => actions.current.titlePage() }),
       registerCommand({ id: 'find.open', label: 'Find', keys: 'Ctrl+F', ...doc, inInputs: false, run: () => actions.current.find(false) }),
+      registerCommand({ id: 'export.open', label: 'Export', keys: 'Ctrl+E', ...doc, run: () => actions.current.export() }),
       registerCommand({ id: 'find.replace', label: 'Find and replace', keys: 'Ctrl+H', ...doc, inInputs: false, run: () => actions.current.find(true) }),
     ];
     const onKey = (e: KeyboardEvent) => void commands.handleEvent(e);
@@ -316,12 +359,13 @@ export function App() {
   // Full clean refresh on every page turn and whenever a dialog or drawer opens or closes.
   // Page turns come only from explicit navigation (see turnPage), not from repagination while typing.
   const titleOpen = titleForm !== null;
-  const prevOverlays = useRef([drawerOpen, snapOpen, titleOpen, debugOpen]);
+  const exportOpen = exportState !== null;
+  const prevOverlays = useRef([drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen]);
   useEffect(() => {
-    const now = [drawerOpen, snapOpen, titleOpen, debugOpen];
+    const now = [drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen];
     if (now.some((v, i) => v !== prevOverlays.current[i])) policy.overlayChanged();
     prevOverlays.current = now;
-  }, [drawerOpen, snapOpen, titleOpen, debugOpen, policy]);
+  }, [drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen, policy]);
   const turnPage = useCallback(
     (i: number) => {
       setPageIndex(i);
@@ -418,6 +462,9 @@ export function App() {
         </button>
         <button type="button" aria-pressed={drawerOpen} onClick={() => setDrawerOpen((o) => !o)}>
           Variables
+        </button>
+        <button type="button" aria-pressed={exportOpen} onClick={() => void toggleExport()}>
+          Export
         </button>
         <button
           type="button"
@@ -555,8 +602,32 @@ export function App() {
             }}
           />
         )}
+        {exportState && (
+          <ExportDialog
+            initial={exportState.options}
+            undefinedKeys={exportState.undefinedKeys}
+            title={exportState.title}
+            storage={storage}
+            getText={() => editor.current?.getText() ?? session.text}
+            onChange={(o) => {
+              const ref = currentRef.current;
+              if (ref) void preferencesStore.set(exportOptionsKey(ref.uri), JSON.stringify(o));
+            }}
+            onDefine={(key) => {
+              setExportState(null);
+              setDrawerOpen(true);
+              setDrawerFocus((f) => ({ key, seq: (f?.seq ?? 0) + 1 }));
+            }}
+            onDone={(message) => {
+              setExportState(null);
+              setToast(message);
+            }}
+            onClose={() => setExportState(null)}
+          />
+        )}
         {drawerOpen && (
           <VariableDrawer
+            focus={drawerFocus}
             variables={resolved.variables}
             diagnostics={resolved.diagnostics}
             uses={uses}

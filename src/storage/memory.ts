@@ -5,6 +5,8 @@ import { snapshotDirName } from './snapshots';
 /** In-memory StoragePort for tests. Pickers return whatever the test queued up. */
 export class MemoryStorage implements StoragePort {
   readonly files = new Map<string, string>();
+  /** Binary files written with `writeBytes` (exports). */
+  readonly bytes = new Map<string, Uint8Array>();
   readonly sidecars = new Map<string, Map<string, string>>();
   /** Queued results for the next pick* calls (null = user cancelled). */
   nextOpen: FileRef | null = null;
@@ -54,6 +56,11 @@ export class MemoryStorage implements StoragePort {
     this.files.set(ref.uri, text);
     this.writeCount++;
     return Promise.resolve({ version: syncHash(text) });
+  }
+  writeBytes(ref: FileRef, bytes: Uint8Array) {
+    this.bytes.set(ref.uri, bytes.slice());
+    this.writeCount++;
+    return Promise.resolve();
   }
   sidecar(ref: FileRef): SidecarStore | null {
     if (!ref.folderUri) return null;
