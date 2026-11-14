@@ -93,7 +93,7 @@ flowchart LR
 | [ ] | 01 | [Minimal working app on the tablet](tickets/01-walking-skeleton.md) | sonnet | — | 5/7 | 🚧 in-progress |
 | [ ] | 02 | [Typing-speed test and screen refresh control](tickets/02-eink-refresh-and-latency-spike.md) | sonnet | 01 | 0/7 | ⛔ blocked |
 | [x] | 03 | [Recognise every screenplay element](tickets/03-full-fountain-parsing.md) | sonnet | 01 | 8/8 | ✅ done |
-| [x] | 04 | [Open, save, autosave and recovery](tickets/04-storage-open-save-autosave.md) | sonnet | 01 | 3/7 | 📱 needs-device |
+| [x] | 04 | [Open, save, autosave and recovery](tickets/04-storage-open-save-autosave.md) | sonnet | 01 | 4/7 | 📱 needs-device |
 | [x] | 05 | [Paged print view with basic page breaks](tickets/05-paged-print-view.md) | sonnet | 03 | 7/7 | ✅ done |
 | [ ] | 06 | [Industry page-break rules](tickets/06-industry-page-break-rules.md) | sonnet | 05 | 0/5 | 🟢 ready |
 | [x] | 07 | [Variable Drawer](tickets/07-variable-drawer.md) | sonnet | 04, 05 | 7/8 | 📱 needs-device |

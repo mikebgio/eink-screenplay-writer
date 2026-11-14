@@ -64,7 +64,7 @@ Real files. The writer can create a new script from a template, open `.fountain`
   - recovering restores the text; discarding removes the journal
 - [x] The recent files list stays in order, has no duplicates and is capped at 10 (tested).
 - [x] A new script from the template parses with a title page and a scene heading.
-- [ ] `npm run dev` can open, edit and save a local `.fountain` file in Chrome.
+- [x] `npm run dev` can open, edit and save a local `.fountain` file in Chrome.
 - [ ] (device) Open, edit and autosave work for a file in local storage on the Boox.
 - [ ] (device) Open, edit and autosave work for a file in Google Drive (needs the Drive app; Google Play must be enabled in the Boox settings). The edit appears on the Mac within a minute.
 - [ ] (device) Whether Drive supports folder access is recorded in Handoff notes.
@@ -76,7 +76,7 @@ Snapshots (11), conflicts (12), export (09/10).
 ## Handoff notes
 
 - **Drive folder access: not yet checked.** Needs the Boox. Open "Choose workspace folder" and see whether Google Drive is offered in the folder picker; if not, Drive files use single-file mode (`pickOpen`). Record the result here.
-- **Not verified:** "`npm run dev` can open, edit and save in Chrome". The start screen loads without console errors, but the file pickers need a human click. The Kotlin plugin (`DocumentStorePlugin.java`) has not been compiled or run; `npm run apk` is still to do.
+- **Chrome open/edit/save verified (2026-11-13):** the owner opened a local `.fountain` file with Open file in desktop Chrome on `npm run dev`, added a line, and autosave wrote it to disk (contents and SHA-256 changed). The Claude desktop app's browser pane can't do this check: its picker returns a handle, but `getFile()` fails with `NotAllowedError`. Use real Chrome. The Kotlin plugin (`DocumentStorePlugin.java`) has not been compiled or run; `npm run apk` is still to do.
 - **Template and parser:** the template test now asserts the parsed title page (ticket 03 landed).
 - **Replacing the document:** `Editor` now takes `text` + `revision`. Bump `revision` to swap in a new document (it resets undo history); typing stays uncontrolled.
 - **Ports and files:** `src/storage/` holds the port, `MemoryStorage`, `DocumentSession`, `JournalStore`, `RecentFiles` and the template (no Capacitor imports). `src/platform/` holds `NativeStorage`, the browser fallbacks (File System Access API, else a localStorage fake folder), the journal on Capacitor Filesystem, and Preferences. The `App` `pause` event is wired through `onBackground`.
