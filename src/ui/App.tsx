@@ -47,6 +47,7 @@ import { ShortcutHelp } from './ShortcutHelp';
 import { ExportDialog } from './ExportDialog';
 import { EXPORT_FORMATS } from './exportFormats';
 import { exportOptionsKey, parseExportOptions, type ExportOptions } from './exportOptions';
+import { importFdxFile, isFdxName } from '../storage/exchange';
 
 const DEBOUNCE_MS = 150;
 
@@ -179,12 +180,13 @@ export function App() {
       ),
     ];
     const title =
-      titleValues(text)
-        .title.replace(/[*_]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim() || ref.name.replace(/\.[^.]+$/, '');
+      titleValues(text).title.replace(/[*_]/g, '').replace(/\s+/g, ' ').trim() ||
+      ref.name.replace(/\.[^.]+$/, '');
     setExportState({
-      options: parseExportOptions(raw, EXPORT_FORMATS.map((f) => f.id)),
+      options: parseExportOptions(
+        raw,
+        EXPORT_FORMATS.map((f) => f.id),
+      ),
       undefinedKeys,
       title,
     });
@@ -205,7 +207,8 @@ export function App() {
     export(): void;
   }>(undefined as never);
   actions.current = {
-    save: () => void session.save().catch((e) => setError(e instanceof Error ? e.message : String(e))),
+    save: () =>
+      void session.save().catch((e) => setError(e instanceof Error ? e.message : String(e))),
     drawer: () => setDrawerOpen((o) => !o),
     snapshot: () => {
       setSnapOpen(true);
@@ -222,16 +225,76 @@ export function App() {
   useEffect(() => {
     const doc = { enabled: () => hasDoc.current };
     const offs = [
-      registerCommand({ id: 'file.save', label: 'Save now', keys: 'Ctrl+S', ...doc, run: () => actions.current.save() }),
-      registerCommand({ id: 'drawer.toggle', label: 'Variable drawer', keys: 'Ctrl+D', ...doc, inInputs: false, run: () => actions.current.drawer() }),
-      registerCommand({ id: 'layout.next', label: 'Change layout (editor / print / both)', keys: 'Ctrl+P', run: () => actions.current.layout() }),
-      registerCommand({ id: 'help.shortcuts', label: 'Shortcut help', keys: 'Ctrl+/', run: () => actions.current.help() }),
-      registerCommand({ id: 'snapshot.name', label: 'Name a snapshot', keys: 'Ctrl+Shift+S', ...doc, run: () => actions.current.snapshot() }),
-      registerCommand({ id: 'debug.toggle', label: 'Typing-latency panel', keys: 'Ctrl+Shift+D', run: () => actions.current.debug() }),
-      registerCommand({ id: 'title.form', label: 'Title page', keys: 'Ctrl+T', ...doc, run: () => actions.current.titlePage() }),
-      registerCommand({ id: 'find.open', label: 'Find', keys: 'Ctrl+F', ...doc, inInputs: false, run: () => actions.current.find(false) }),
-      registerCommand({ id: 'export.open', label: 'Export', keys: 'Ctrl+E', ...doc, run: () => actions.current.export() }),
-      registerCommand({ id: 'find.replace', label: 'Find and replace', keys: 'Ctrl+H', ...doc, inInputs: false, run: () => actions.current.find(true) }),
+      registerCommand({
+        id: 'file.save',
+        label: 'Save now',
+        keys: 'Ctrl+S',
+        ...doc,
+        run: () => actions.current.save(),
+      }),
+      registerCommand({
+        id: 'drawer.toggle',
+        label: 'Variable drawer',
+        keys: 'Ctrl+D',
+        ...doc,
+        inInputs: false,
+        run: () => actions.current.drawer(),
+      }),
+      registerCommand({
+        id: 'layout.next',
+        label: 'Change layout (editor / print / both)',
+        keys: 'Ctrl+P',
+        run: () => actions.current.layout(),
+      }),
+      registerCommand({
+        id: 'help.shortcuts',
+        label: 'Shortcut help',
+        keys: 'Ctrl+/',
+        run: () => actions.current.help(),
+      }),
+      registerCommand({
+        id: 'snapshot.name',
+        label: 'Name a snapshot',
+        keys: 'Ctrl+Shift+S',
+        ...doc,
+        run: () => actions.current.snapshot(),
+      }),
+      registerCommand({
+        id: 'debug.toggle',
+        label: 'Typing-latency panel',
+        keys: 'Ctrl+Shift+D',
+        run: () => actions.current.debug(),
+      }),
+      registerCommand({
+        id: 'title.form',
+        label: 'Title page',
+        keys: 'Ctrl+T',
+        ...doc,
+        run: () => actions.current.titlePage(),
+      }),
+      registerCommand({
+        id: 'find.open',
+        label: 'Find',
+        keys: 'Ctrl+F',
+        ...doc,
+        inInputs: false,
+        run: () => actions.current.find(false),
+      }),
+      registerCommand({
+        id: 'export.open',
+        label: 'Export',
+        keys: 'Ctrl+E',
+        ...doc,
+        run: () => actions.current.export(),
+      }),
+      registerCommand({
+        id: 'find.replace',
+        label: 'Find and replace',
+        keys: 'Ctrl+H',
+        ...doc,
+        inInputs: false,
+        run: () => actions.current.find(true),
+      }),
     ];
     const onKey = (e: KeyboardEvent) => void commands.handleEvent(e);
     window.addEventListener('keydown', onKey, true);
@@ -294,9 +357,15 @@ export function App() {
     await storage.write(ref, newScriptTemplate());
     await openRef(ref);
   });
+  /** Opens a picked file; an `.fdx` is converted to a new `.fountain` first (ticket 10). */
+  const openPicked = async (ref: FileRef) => {
+    if (!isFdxName(ref.name)) return openRef(ref);
+    const converted = await importFdxFile(storage, ref);
+    if (converted) await openRef(converted);
+  };
   const openFile = guarded(async () => {
     const ref = await storage.pickOpen();
-    if (ref) await openRef(ref);
+    if (ref) await openPicked(ref);
   });
   const chooseFolder = guarded(async () => {
     const f = await storage.pickFolder();

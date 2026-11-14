@@ -83,6 +83,12 @@ export interface ScriptDocument {
   elements: ScriptElement[];
 }
 
+/**
+ * A document after `resolve`: the same shape as `ScriptDocument`, with `{{KEY}}` filled in, `\{{` escapes
+ * removed and the `Var-` entries gone. Exporters take this, not the parsed document.
+ */
+export type ResolvedDocument = ScriptDocument;
+
 /** Page geometry. Everything is in inches or lines (6 lines per inch). */
 export interface PageSpec {
   name: 'letter' | 'a4';

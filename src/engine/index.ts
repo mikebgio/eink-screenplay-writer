@@ -38,6 +38,10 @@ export { DEFAULT_SEARCH, findMatches, stepMatch, selectedMatch } from './search'
 export type { SearchOptions, Match } from './search';
 export { checkableWords, scriptWords, wordsIn, wordKey } from './spellScan';
 export type { WordRange } from './spellScan';
+export { toFountain } from './fountainOut';
+export type { ToFountainOptions } from './fountainOut';
+export { exportFdx, importFdx } from './fdx';
+export type { FdxOptions } from './fdx';
 export * from './types';
 export { enter, tab, force, capitalizeInput, HEADING_PREFIX } from './editing';
 export type { EditState, Mode, ForceKind, InputChange } from './editing';
