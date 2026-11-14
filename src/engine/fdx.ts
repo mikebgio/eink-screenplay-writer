@@ -117,15 +117,17 @@ function titlePageXml(doc: ScriptDocument): string {
       })
       .join('');
   };
-  const centred = ['Title', 'Credit', 'Author', 'Source']
+  const centred = ['Title', 'Credit', 'Author', 'Source', 'Notes']
     .map((k) => lines(k, 'Center'))
     .filter((s) => s !== '');
-  const date = lines('Draft date', 'Right');
-  const contact = lines('Contact', 'Left');
-  if (centred.length === 0 && !date && !contact) return '';
+  const bottom = [
+    lines('Copyright', 'Left'),
+    lines('Draft date', 'Right'),
+    lines('Contact', 'Left'),
+  ].filter((s) => s !== '');
+  if (centred.length === 0 && bottom.length === 0) return '';
   let body = blank('Center', 10) + centred.join(blank('Center', 2));
-  if (date || contact) body += blank('Left', 8);
-  body += date + (date && contact ? blank('Left', 1) : '') + contact;
+  if (bottom.length > 0) body += blank('Left', 8) + bottom.join(blank('Left', 1));
   return `  <TitlePage>\n    <Content>\n${body}    </Content>\n  </TitlePage>\n`;
 }
 
@@ -133,8 +135,9 @@ function titlePageXml(doc: ScriptDocument): string {
  * Final Draft XML for a resolved document. Element mapping: scene heading, action, character,
  * parenthetical, dialogue and transition map one to one; centred text is an Action with
  * `Alignment="Center"`; a lyric is italic Dialogue; a page break becomes `StartsNewPage="Yes"` on the next
- * paragraph; both halves of dual dialogue go in one `DualDialogue` paragraph. Sections, synopses, notes
- * and boneyard are not written. Emphasis becomes `Style` runs (`Bold+Italic`, …).
+ * paragraph (the `DualDialogue` wrapper for a dual pair; a page break with nothing after it is not
+ * written, since there is no paragraph to start the page); both halves of dual dialogue go in one
+ * `DualDialogue` paragraph. Sections, synopses, notes and boneyard are not written. Emphasis becomes `Style` runs (`Bold+Italic`, …).
  */
 export function exportFdx(resolved: ResolvedDocument, opts: FdxOptions = {}): string {
   const els = resolved.elements;
@@ -203,8 +206,13 @@ export function exportFdx(resolved: ResolvedDocument, opts: FdxOptions = {}): st
         else if (seenRight) break;
         members.push(m);
       }
+      // A pending page break goes on the wrapper: Final Draft ignores it on the nested paragraphs.
+      const startsPage = newPage;
+      newPage = false;
       const inner = members.map(one).filter((x): x is string => x !== null);
-      out.push(`<Paragraph><DualDialogue>${inner.join('')}</DualDialogue></Paragraph>`);
+      out.push(
+        `<Paragraph${startsPage ? ' StartsNewPage="Yes"' : ''}><DualDialogue>${inner.join('')}</DualDialogue></Paragraph>`,
+      );
       i = j - 1;
       continue;
     }
@@ -420,7 +428,7 @@ function importBody(paras: Para[]): ScriptElement[] {
         type = inGroup ? 'parenthetical' : 'action';
         break;
       case 'Dialogue':
-        type = inGroup ? 'dialogue' : 'lyric';
+        type = 'dialogue'; // outside a cue group it becomes a lyric or action, below
         break;
       case 'Transition':
         type = 'transition';
@@ -432,7 +440,18 @@ function importBody(paras: Para[]): ScriptElement[] {
         type = p.attrs.Alignment === 'Center' ? 'centered' : 'action';
     }
     const pieces = tidy(p.text, p.styles, type === 'action' || type === 'centered');
-    if (pieces.length === 0) return; // empty paragraphs only add spacing in Final Draft
+    if (pieces.length === 0) {
+      // Empty paragraphs only add spacing in Final Draft; an empty cue leaves no group to belong to.
+      if (type === 'character') inGroup = false;
+      return;
+    }
+    if (type === 'dialogue' && !inGroup) {
+      // Dialogue with no cue is a lyric when it is wholly italic (how lyrics are exported), else action.
+      const italic = pieces.every((pc) =>
+        pc.styles.some((s) => s.kind === 'italic' && s.from === 0 && s.to === pc.text.length),
+      );
+      type = italic ? 'lyric' : 'action';
+    }
     if (p.attrs.StartsNewPage === 'Yes' && out.length > 0) out.push(element('page-break', ''));
     if (type === 'character') inGroup = true;
     else if (type !== 'parenthetical' && type !== 'dialogue') inGroup = false;
@@ -455,6 +474,7 @@ function importBody(paras: Para[]): ScriptElement[] {
   for (const p of paras) {
     if (p.dual) {
       inGroup = false;
+      if (p.attrs.StartsNewPage === 'Yes' && out.length > 0) out.push(element('page-break', ''));
       let side: 'left' | 'right' = 'left';
       let characters = 0;
       const members = p.dual;
@@ -482,6 +502,7 @@ interface TitleGroup {
 }
 
 const CREDIT = /\b(written|by)\b/i;
+const COPYRIGHT = /^\s*(©|\(c\)|copyright\b)/i;
 
 function importTitlePage(paras: Para[]): TitleEntry[] {
   const groups: TitleGroup[] = [];
@@ -532,18 +553,25 @@ function importTitlePage(paras: Para[]): TitleEntry[] {
   set('Source', source);
   if (notes.length > 0) set('Notes', value(notes));
 
+  // A left-aligned block that starts like a copyright line is Copyright wherever it sits (export writes
+  // it above the date and contact); the rest follows the layout rules below.
+  const isCopyright = (g: TitleGroup) => COPYRIGHT.test(g.lines[0]!);
+  const marked = left.filter(isCopyright);
+  const rest = left.filter((g) => !isCopyright(g));
   let draftDate = value(right);
-  let copyright = '';
+  let copyright = value(marked);
   let contact = '';
-  if (right.length > 0 || left.length === 1) {
-    contact = value(left);
-  } else if (left.length === 2) {
-    draftDate = value(left.slice(0, 1));
-    contact = value(left.slice(1));
-  } else if (left.length >= 3) {
-    copyright = value(left.slice(0, left.length - 2));
-    draftDate = value(left.slice(-2, -1));
-    contact = value(left.slice(-1));
+  if (right.length > 0 || rest.length === 1) {
+    contact = value(rest);
+  } else if (rest.length === 2) {
+    draftDate = value(rest.slice(0, 1));
+    contact = value(rest.slice(1));
+  } else if (rest.length >= 3) {
+    copyright = [copyright, value(rest.slice(0, rest.length - 2))]
+      .filter((s) => s !== '')
+      .join('\n');
+    draftDate = value(rest.slice(-2, -1));
+    contact = value(rest.slice(-1));
   }
   set('Copyright', copyright);
   set('Draft date', draftDate);

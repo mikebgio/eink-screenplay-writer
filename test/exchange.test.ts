@@ -561,7 +561,120 @@ describe('parser sanity', () => {
 
 describe('importFdx input handling', () => {
   it('ignores a byte-order mark and leading whitespace', () => {
-    const xml = '<FinalDraft><Content><Paragraph Type="Action"><Text>Hi.</Text></Paragraph></Content></FinalDraft>';
+    const xml =
+      '<FinalDraft><Content><Paragraph Type="Action"><Text>Hi.</Text></Paragraph></Content></FinalDraft>';
     expect(importFdx(`\uFEFF\n  ${xml}`)).toBe(importFdx(xml));
+  });
+});
+
+describe('review follow-ups', () => {
+  const wrap = (body: string) =>
+    `<?xml version="1.0"?><FinalDraft DocumentType="Script"><Content>${body}</Content></FinalDraft>`;
+  const p = (type: string, text: string, attrs = '') =>
+    `<Paragraph Type="${type}"${attrs}><Text>${text}</Text></Paragraph>`;
+  const types = (xml: string) => parse(importFdx(xml)).elements.map((e) => `${e.type}:${e.text}`);
+
+  it('uses no regex lookbehind (older WebViews reject it when the bundle loads)', () => {
+    for (const file of [
+      '../src/engine/fountainOut.ts',
+      '../src/engine/fdx.ts',
+      '../src/storage/exchange.ts',
+    ]) {
+      expect(readFileSync(new URL(file, import.meta.url), 'utf8'), file).not.toMatch(/\(\?<[!=]/);
+    }
+  });
+
+  it('escapes {{ only where it is not already escaped', () => {
+    const out = toFountain(parse('A \\{{ONE}} and {{TWO}}.'), { dropVariables: true });
+    expect(out).toContain('A \\{{ONE}} and \\{{TWO}}.');
+  });
+
+  it('reads Dialogue with no cue as action, or as a lyric when it is wholly italic', () => {
+    const xml = wrap(
+      p('Action', 'Setup.') +
+        p('Dialogue', 'Nobody is speaking.') +
+        '<Paragraph Type="Dialogue"><Text Style="Italic">La la la</Text></Paragraph>',
+    );
+    expect(types(xml)).toEqual(['action:Setup.', 'action:Nobody is speaking.', 'lyric:La la la']);
+  });
+
+  it('does not turn dialogue after an empty cue into a lyric', () => {
+    const xml = wrap(
+      p('Character', 'BOB') +
+        p('Dialogue', 'Hi.') +
+        '<Paragraph Type="Character"/>' +
+        p('Dialogue', 'Hello?'),
+    );
+    expect(types(xml)).toEqual(['character:BOB', 'dialogue:Hi.', 'action:Hello?']);
+  });
+
+  it('keeps a group open across empty paragraphs', () => {
+    const xml = wrap(p('Character', 'BOB') + '<Paragraph Type="Action"/>' + p('Dialogue', 'Hi.'));
+    expect(types(xml)).toEqual(['character:BOB', 'dialogue:Hi.']);
+  });
+
+  it('keeps dialogue text that starts like another element, and a lone (aside) as a parenthetical', () => {
+    const xml = wrap(
+      p('Character', 'BOB') +
+        p('Dialogue', '~sings') +
+        p('Dialogue', '= equals') +
+        p('Dialogue', '(laughs)'),
+    );
+    expect(types(xml)).toEqual([
+      'character:BOB',
+      'dialogue:~sings\n= equals',
+      'parenthetical:(laughs)',
+    ]);
+  });
+
+  describe('page breaks and dual dialogue', () => {
+    const text = 'One.\n\n===\n\nBRICK\nLeft.\n\nSTEEL ^\nRight.\n\nAfter.';
+    const doc = resolve(parse(text)).doc;
+
+    it('puts StartsNewPage on the DualDialogue wrapper, not the nested paragraph', () => {
+      const xml = exportFdx(doc);
+      expect(xml).toContain('<Paragraph StartsNewPage="Yes"><DualDialogue>');
+      const inner = xml.slice(xml.indexOf('<DualDialogue>'), xml.indexOf('</DualDialogue>'));
+      expect(inner).not.toContain('StartsNewPage');
+    });
+
+    it('survives a round trip', () => {
+      const back = parse(importFdx(exportFdx(doc)));
+      expect(back.elements.map((e) => e.type)).toEqual(doc.elements.map((e) => e.type));
+    });
+
+    it('does not write a page break that has nothing after it', () => {
+      const xml = exportFdx(resolve(parse('One.\n\n===')).doc);
+      expect(xml).not.toContain('StartsNewPage');
+    });
+  });
+
+  it('writes Copyright and Notes on the title page and reads them back', () => {
+    const source = [
+      'Title: Rainy Night',
+      'Credit: Written by',
+      'Author: Pat Writer',
+      'Source: Based on a novel',
+      'Notes: First draft',
+      'Copyright: © 2026 Pat Writer',
+      'Draft date: 1/2/2026',
+      'Contact: pat@example.com',
+      '',
+      'Action.',
+    ].join('\n');
+    const xml = exportFdx(resolve(parse(source)).doc);
+    expect(xml).toContain('First draft');
+    expect(xml).toContain('© 2026 Pat Writer');
+    const back = parse(importFdx(xml));
+    expect(Object.fromEntries(back.titlePage.map((t) => [t.key, t.value]))).toEqual({
+      Title: 'Rainy Night',
+      Credit: 'Written by',
+      Author: 'Pat Writer',
+      Source: 'Based on a novel',
+      Notes: 'First draft',
+      Copyright: '© 2026 Pat Writer',
+      'Draft date': '1/2/2026',
+      Contact: 'pat@example.com',
+    });
   });
 });

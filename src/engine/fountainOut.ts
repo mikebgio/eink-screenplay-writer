@@ -112,6 +112,9 @@ function block(el: ScriptElement): string {
       return t.startsWith('(') && t.endsWith(')') ? t : `(${t})`;
     }
     case 'dialogue':
+      // Inside a cue group the parser reads every line literally except one wrapped in `( )`, which
+      // becomes a parenthetical. Fountain has no escape for that, so such a line keeps its text but
+      // changes type; no candidate could do better, which is why there is no `pick` here.
       return marked();
     case 'transition':
       return pick(el, [el.text, `>${el.text}`]);
@@ -146,7 +149,9 @@ function titleBlock(e: TitleEntry): string {
 
 /** Writes a document as Fountain. Shared by `toFountain` and `importFdx`; never resolves anything. */
 export function writeFountain(doc: ScriptDocument, escapeBraces = false): string {
-  const esc = (s: string) => (escapeBraces ? s.replace(/(?<!\\)\{\{/g, '\\{{') : s);
+  // No lookbehind: older WebViews (Safari < 16.4) reject it as a syntax error when the bundle loads.
+  const esc = (s: string) =>
+    escapeBraces ? s.replace(/\{\{/g, (m, at: number) => (s[at - 1] === '\\' ? m : '\\{{')) : s;
   const render = (forceFirst: boolean): string => {
     const parts: string[] = [];
     if (doc.titlePage.length > 0)

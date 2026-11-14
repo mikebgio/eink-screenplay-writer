@@ -31,7 +31,7 @@ export interface FdxExportOptions {
   variables?: 'fill' | 'keep';
 }
 
-/** Final Draft XML for the script as written (variables unresolved). */
+/** Final Draft XML for a script's text. Values are filled in unless `variables` is `keep` (`{{KEY}}` stays). */
 export function exportFdxText(text: string, opts: FdxExportOptions = {}): string {
   const { doc } = resolve(parse(text), { mode: opts.variables === 'keep' ? 'keep' : 'resolve' });
   return exportFdx(doc, { sceneNumbers: opts.sceneNumbers });
@@ -59,7 +59,10 @@ export async function saveTextExport(
  * (null if they cancel). The conversion runs first, so a file that isn't Final Draft XML fails before a
  * save picker is shown and nothing is created. The `.fdx` itself is never changed.
  */
-export async function importFdxFile(storage: StoragePort, source: FileRef): Promise<FileRef | null> {
+export async function importFdxFile(
+  storage: StoragePort,
+  source: FileRef,
+): Promise<FileRef | null> {
   const { text } = await storage.read(source);
   const fountain = importFdx(text.replace(/^\uFEFF/, ''));
   const target = await storage.pickCreate(exchangeFileName(source.name, 'fountain'));
