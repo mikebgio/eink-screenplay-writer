@@ -8,6 +8,7 @@ import { historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { asUndoStep, historyExtension } from './historyConfig';
 import { findExtension, openFind } from './findPanel';
 import { recheckSpelling, spellExtension, type SpellHooks } from './spellMarks';
+import { editingExtensions } from './editing';
 
 /** What the rest of the app can do to the editor: variable edits and jumping to a use. */
 export interface EditorHandle {
@@ -16,6 +17,8 @@ export interface EditorHandle {
   apply(changes: TextChange[], userEvent?: string): void;
   /** Opens the find panel (with the cursor in Replace when `withReplace`). */
   openFind(withReplace?: boolean): void;
+  /** The CodeMirror view, for commands that act on it directly. */
+  view(): EditorView;
   /** Selects the range, scrolls it into view and focuses the editor. */
   reveal(from: number, to: number): void;
 }
@@ -72,6 +75,7 @@ export function Editor({
       ignoreInScript: (w) => spellRef.current.ignoreInScript(w),
     }),
     drawSelection({ cursorBlinkRate: 0 }),
+    ...editingExtensions(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
     elementStyles,
@@ -99,6 +103,7 @@ export function Editor({
     view.current = v;
     onReady?.({
       getText: () => v.state.doc.toString(),
+      view: () => v,
       apply: (changes, userEvent = 'input.variable') => {
         if (changes.length > 0) v.dispatch(asUndoStep({ changes }, userEvent));
       },

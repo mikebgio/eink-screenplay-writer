@@ -37,6 +37,8 @@ import { PrintView } from './PrintView';
 import { TitlePageForm } from './TitlePageForm';
 import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList';
 import { StartScreen } from './StartScreen';
+import { commands, registerCommand } from './commands';
+import { ShortcutHelp } from './ShortcutHelp';
 
 const DEBOUNCE_MS = 150;
 
@@ -118,43 +120,50 @@ export function App() {
     const t = setTimeout(() => setToast(null), 6000);
     return () => clearTimeout(t);
   }, [toast]);
-  // Ctrl+D toggles the variable drawer (captured before the editor's own Ctrl+D binding).
+  // Shortcuts: every command is registered centrally (see commands.ts); the handlers read the latest
+  // state through `actions`, so the registrations below happen once.
+  const [helpOpen, setHelpOpen] = useState(false);
+  const actions = useRef<{
+    save(): void;
+    drawer(): void;
+    snapshot(): void;
+    titlePage(): void;
+    layout(): void;
+    help(): void;
+    find(replace: boolean): void;
+  }>(undefined as never);
+  actions.current = {
+    save: () => void session.save().catch((e) => setError(e instanceof Error ? e.message : String(e))),
+    drawer: () => setDrawerOpen((o) => !o),
+    snapshot: () => {
+      setSnapOpen(true);
+      setFocusSeq((n) => n + 1);
+      refreshSnaps();
+    },
+    titlePage: openTitleForm,
+    layout: () => chooseLayoutRef.current(nextLayout(layoutRef.current)),
+    help: () => setHelpOpen((o) => !o),
+    find: (replace) => void editor.current?.openFind(replace),
+  };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
-        // Only with a document open, and not while typing in the drawer (Ctrl+D is delete-forward there).
-        if (!hasDoc.current || (e.target as HTMLElement | null)?.closest?.('.drawer')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setDrawerOpen((o) => !o);
-      }
-      // Ctrl+Shift+S: name a snapshot.
-      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 's') {
-        if (!hasDoc.current) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setSnapOpen(true);
-        setFocusSeq((n) => n + 1);
-        refreshSnaps();
-      }
-    };
+    const doc = { enabled: () => hasDoc.current };
+    const offs = [
+      registerCommand({ id: 'file.save', label: 'Save now', keys: 'Ctrl+S', ...doc, run: () => actions.current.save() }),
+      registerCommand({ id: 'drawer.toggle', label: 'Variable drawer', keys: 'Ctrl+D', ...doc, inInputs: false, run: () => actions.current.drawer() }),
+      registerCommand({ id: 'layout.next', label: 'Change layout (editor / print / both)', keys: 'Ctrl+P', run: () => actions.current.layout() }),
+      registerCommand({ id: 'help.shortcuts', label: 'Shortcut help', keys: 'Ctrl+/', run: () => actions.current.help() }),
+      registerCommand({ id: 'snapshot.name', label: 'Name a snapshot', keys: 'Ctrl+Shift+S', ...doc, run: () => actions.current.snapshot() }),
+      registerCommand({ id: 'title.form', label: 'Title page', keys: 'Ctrl+T', ...doc, run: () => actions.current.titlePage() }),
+      registerCommand({ id: 'find.open', label: 'Find', keys: 'Ctrl+F', ...doc, inInputs: false, run: () => actions.current.find(false) }),
+      registerCommand({ id: 'find.replace', label: 'Find and replace', keys: 'Ctrl+H', ...doc, inInputs: false, run: () => actions.current.find(true) }),
+    ];
+    const onKey = (e: KeyboardEvent) => void commands.handleEvent(e);
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [refreshSnaps]);
-
-  // Ctrl+T opens the title page form.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 't') {
-        if (!hasDoc.current) return;
-        e.preventDefault();
-        e.stopPropagation();
-        openTitleForm();
-      }
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      offs.forEach((off) => off());
     };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [openTitleForm]);
+  }, []);
 
   const show = useCallback((t: string) => {
     clearTimeout(timer.current); // a pending preview update belongs to the old document
@@ -243,16 +252,8 @@ export function App() {
   }, []);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        chooseLayout(nextLayout(layoutRef.current));
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [chooseLayout]);
+  const chooseLayoutRef = useRef(chooseLayout);
+  chooseLayoutRef.current = chooseLayout;
 
   // The print view shows one page; the editor cursor drags it along when it crosses a page boundary.
   const [pageIndex, setPageIndex] = useState(0);
@@ -383,6 +384,7 @@ export function App() {
           ))}
         </span>
       </header>
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       {toast && (
         <div class="toast" role="status">
           {toast}

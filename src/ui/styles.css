@@ -486,3 +486,35 @@ button {
   color: #fff;
   background: #000;
 }
+
+/* Keyboard-first editing: shortcut help, suggestion list (no animation on e-ink). */
+.shortcut-help table {
+  width: 100%;
+  margin-bottom: 12px;
+  border-collapse: collapse;
+}
+.shortcut-help td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #000;
+}
+.shortcut-keys {
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+  text-align: right;
+}
+.cm-tooltip.cm-tooltip-autocomplete {
+  border: 2px solid #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  font-family: system-ui, sans-serif;
+}
+.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: #000;
+  color: #fff;
+}
+.cm-completionDetail {
+  margin-left: 0.8em;
+  font-style: normal;
+  opacity: 1;
+}

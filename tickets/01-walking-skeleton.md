@@ -1,7 +1,7 @@
 ---
 id: 01
 title: Minimal working app on the tablet
-status: in-progress
+status: done
 blocked_by: []
 model: sonnet
 ---
@@ -47,8 +47,8 @@ The thinnest end-to-end path through every layer. Opening the app on the Boox sh
 - [x] At least 6 Vitest tests through the engine's public interface: parse classifies each of the 4 element types; paginate wraps a long action line at 60 characters and long dialogue at 35; a 200-line script produces more than one page.
 - [x] `npm run dev` shows the editor and print view in a desktop browser; typing updates the page within about 200 ms.
 - [x] Print view text is Courier Prime (loaded from the bundled font, never fetched from a network).
-- [ ] `npm run apk` produces a debug APK. If the Android SDK or JDK isn't installed on this machine, stop at this step and write the exact install commands for the owner in the ticket's Handoff notes. Don't install system tools without asking.
-- [ ] (device) The APK installs and launches on the Note Air 6C and shows the sample script.
+- [x] `npm run apk` produces a debug APK. If the Android SDK or JDK isn't installed on this machine, stop at this step and write the exact install commands for the owner in the ticket's Handoff notes. Don't install system tools without asking.
+- [x] (device) The APK installs and launches on the Note Air 6C and shows the sample script.
 - [x] `README.md` documents building and sideloading.
 
 ## Out of scope
@@ -56,6 +56,8 @@ The thinnest end-to-end path through every layer. Opening the app on the Boox sh
 Real file I/O, other element types, page-break rules, theming, e-ink refresh control.
 
 ## Handoff notes
+
+**Owner confirmation (2026-11-13):** the owner built the APK and ran it on the Note Air 6C. Both remaining criteria are ticked on that report. Typing felt "somewhat acceptable" only with the Boox's own fast-refresh setting switched on; see `PLAN.md` decision D4 and ticket 16. The status note below is kept for history.
 
 **Status note:** `npm run apk` could NOT run here (no JDK, no Android SDK, no adb). The Android project is scaffolded (`android/`, app id `dev.personal.boox.screenplay`, name "Scriptwriter") and `cap sync` works. So the `npm run apk` criterion stays unticked and the status stays `in-progress` until the owner builds it. The `npm run dev` check was verified afterwards from the main session (editor + print view render, Courier Prime loaded, edit reaches the print view in 161 ms); `npm run build` succeeds and bundles all four Courier Prime TTFs into `dist/assets` (no network fetch). Debounce is 150 ms.
 

@@ -1,7 +1,7 @@
 ---
 id: 08
 title: Keyboard-first editing
-status: todo
+status: needs-device
 blocked_by: [03, 07]
 model: sonnet
 ---
@@ -85,10 +85,10 @@ Add a small native method `hasHardwareKeyboard()` plus a change event, based on 
 
 ## Acceptance criteria
 
-- [ ] Unit tests for every row of the Enter and Tab tables and for every force shortcut, written as (text with a `|` cursor marker) → (expected text with cursor). Aim for 30 or more cases. *(Writing the test-case tables from these tables is Haiku-suitable.)*
-- [ ] Capitalising scene headings when the prefix is typed, and capitalising in character mode, are tested via the input-filter function.
-- [ ] Autocomplete sources are tested: frequency ordering, locations taken from the existing headings, variable keys after `{{`.
-- [ ] Command registry: duplicate key bindings cause an error during development; the shortcut help lists every command.
+- [x] Unit tests for every row of the Enter and Tab tables and for every force shortcut, written as (text with a `|` cursor marker) → (expected text with cursor). Aim for 30 or more cases. *(Writing the test-case tables from these tables is Haiku-suitable.)*
+- [x] Capitalising scene headings when the prefix is typed, and capitalising in character mode, are tested via the input-filter function.
+- [x] Autocomplete sources are tested: frequency ordering, locations taken from the existing headings, variable keys after `{{`.
+- [x] Command registry: duplicate key bindings cause an error during development; the shortcut help lists every command.
 - [ ] (manual, browser) Typing a full scene with only the keyboard gives correct Fountain that parses into the expected elements.
 - [ ] (device) With a Bluetooth keyboard paired, the on-screen keyboard doesn't appear; unpairing brings it back.
 
@@ -98,4 +98,26 @@ Find and replace (14), spell-check (14), revision marks.
 
 ## Handoff notes
 
-_(Fill in: the command registry API, and the commands reserved for later.)_
+**Status:** the pure logic, the registry and the CodeMirror/Android wiring are built. The unit-testable criteria are ticked. The two (manual, browser) / (device) criteria are **not verified** (no file picker in the headless browser pane; no device or Android SDK here), so they stay unticked. The Java plugin was written against the Capacitor sources in `node_modules` but **not compiled** (no Android SDK).
+
+**Pure editing (`src/engine/editing.ts`, exported from `src/engine`):** `enter(state)`, `tab(state, shift?)` (returns `null` when Tab means nothing there; the editor swallows it so focus stays), `force(state, kind)` and `capitalizeInput(before, change, mode)`. `EditState = { text, cursor, mode? }`; `Mode = 'character' | 'transition' | null` is the "capitalising mode" of the (empty) cursor line, kept in a CodeMirror `StateField` in `src/ui/editing.ts` that ends when the cursor leaves the line. Tests: `test/editing.test.ts` (about 75 table-driven cases written as `text|text` with a cursor marker, plus a keyboard-only scene that is parsed back).
+
+**Decisions made while building (all within the ticket's tables):**
+- Forcing marks are decided by asking the real parser: the candidate line is classified between blank lines (a cue is followed by a line of text) and a mark is added only if it isn't read as the wanted type. So `Jack` → `JACK` (no `@`), `007` → `@007`, `INT. HOUSE` forced to action → `!INT. HOUSE`. Ctrl+1 and Ctrl+3/6 upper-case the line; the other keys leave case alone.
+- On an **empty** line Ctrl+3 / Ctrl+6 start character / transition mode (like Tab); Ctrl+4 inserts `()` with the cursor inside; Ctrl+7 inserts `>  <` with the cursor in the middle; Ctrl+8 inserts `~`; Ctrl+1/2/5 do nothing.
+- Enter finishes a mode line: a cue gets `\n` (no blank), a transition gets `\n\n`. In the middle of a line, or on an empty line, Enter is a plain newline (and ends the mode). Enter just before the closing `)` of a parenthetical counts as end of line. Centered, section, synopsis and `===` behave like action; lyric, title page and notes are a plain newline.
+- Shift+Tab cycles plain → transition → character → plain; Tab goes plain → character → transition → plain. Tab under a parenthetical line, or on a non-empty line, does nothing.
+- Capitalising runs only for `input.type*` transactions (typing, including IME composition); paste and programmatic edits are never changed. The heading prefix regex is `HEADING_PREFIX` (`INT.`, `EXT.`, `EST.`, `INT./EXT.`, `I/E.` or `I/E `, case-insensitive): the moment it is completed the whole line is upper-cased, afterwards only typed text.
+- Autocomplete (`src/engine/completions.ts`, `suggestionsAt(text, cursor, mode)`; wrapped in `src/ui/editing.ts`): character names by frequency (identity from ticket 07, so `{{HERO}}`), shown on a cue line (character mode, a `@` line or a recognised cue); heading prefixes only once two characters are typed (so ordinary action isn't interrupted); then locations from existing headings (the line being edited is excluded, split at the last ` - `); after ` - `, `DAY, NIGHT, CONTINUOUS, LATER, MOMENTS LATER, MORNING, EVENING` then any other times used. After `{{`: `listVariableKeys`, each with its value (or `undefined`). A suggestion equal to what is typed is dropped, so a finished name closes the list and Enter works normally. Tab accepts (a high-priority binding before the Tab rule); Enter and Esc use CodeMirror's completion keymap. Animations are disabled in CSS.
+
+**Command registry (`src/ui/commands.ts`):** `registerCommand({ id, label, keys, run, scope?, inInputs?, enabled? })` returns an unregister function. `keys` is a string or array like `'Ctrl+Shift+Z'`, `'Tab'`, `'Ctrl+/'` (the Mac ⌘ key counts as Ctrl). `scope: 'editor'` commands become CodeMirror bindings (`run({ view })`); the default `global` scope is handled by a single capture-phase window listener in `App` (`commands.handleEvent`). `run` returning `false` lets the key through; `inInputs: false` skips key events from inputs and the drawer; `enabled()` can switch a command off (e.g. no document). A duplicate key throws in development/tests and is dropped with a console warning in production; registering the same `id` again replaces it (hot reload). `commands.list()` feeds the help overlay (`ShortcutHelp.tsx`, Ctrl+/).
+- Registered now: `file.save` Ctrl+S, `drawer.toggle` Ctrl+D, `layout.next` Ctrl+P, `help.shortcuts` Ctrl+/, `edit.undo` / `edit.redo` Ctrl+Z / Ctrl+Shift+Z, plus Tab, Shift+Tab, Enter, Shift+Enter and Ctrl+1…8. The existing shortcuts for the snapshot name (`snapshot.name` Ctrl+Shift+S), title page (`title.form` Ctrl+T), find (`find.open` Ctrl+F) and replace (`find.replace` Ctrl+H) were moved from ad-hoc listeners in `App.tsx` into the registry.
+- **Reserved for later tickets** (`RESERVED_KEYS`; registering them under another id throws): Ctrl+Shift+S → `snapshot.name` (11, already registered), Ctrl+G → `navigator.open` (13), Ctrl+E → `export.open` (09), Ctrl+F → `find.open` (14, already registered), Ctrl+Shift+D → `debug.toggle` (02). Register them with exactly these ids.
+- `EditorHandle` gained `view()`.
+
+**On-screen keyboard:** `src/platform/device.ts` (`Device.hasHardwareKeyboard()`, `watchHardwareKeyboard(cb)`; browser fallback returns false) over `android/.../DevicePlugin.java`, registered in `MainActivity`. It reads `Configuration.keyboard != KEYBOARD_NOKEYS && hardKeyboardHidden != HARDKEYBOARDHIDDEN_YES` and emits `keyboardChange` from `handleOnConfigurationChanged` (the manifest already lists `keyboard|keyboardHidden` in `configChanges`). `src/ui/hardwareKeyboard.ts` sets `inputmode="none"` on the editor content while connected.
+
+**Owner checks:**
+- (manual, browser) Type a whole scene using only the keyboard (Tab, Enter, text, Ctrl+1…8): the result is correct Fountain and styles as the expected elements. The same flow is unit-tested on the pure functions only. Also check that the suggestion list appears and Tab/Enter/Esc work, and Ctrl+/ shows the help.
+- (device) With a Bluetooth keyboard paired, the on-screen keyboard doesn't appear; unpairing brings it back. The Java plugin has not been compiled: run `npm run apk`.
+- Check that Ctrl+S, Ctrl+D, Ctrl+P, Ctrl+T, Ctrl+Shift+S and Ctrl+F still work after moving to the registry, and Ctrl+D is still ignored inside the drawer's inputs.
