@@ -55,6 +55,14 @@ Output: `android/app/build/outputs/apk/debug/app-debug.apk` (debug-signed, fine 
 - With USB debugging on: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
 - Or copy the APK to the Boox (USB or Google Drive) and open it there; allow installs from that app when asked.
 
+## E-ink refresh
+
+The app switches the Onyx screen refresh itself: fast while you type, then a full clean refresh after 1.5 s idle, on page turns and when a drawer or dialog opens or closes (`src/platform/refreshPolicy.ts`, native side `EInkPlugin.kt`). Everything is a no-op off Onyx hardware and in a browser.
+
+Manual fallback: the Boox system has its own per-app refresh settings (app optimisation menu, per app). You can set a refresh mode there if the plugin misbehaves; the app does not depend on it.
+
+Typing latency: press `Ctrl+Shift+D` (or long-press the document name) for the debug panel; see `docs/latency-test.md` for the filmed test and `docs/decisions/0001-editor-surface.md` for the GO/NO-GO record.
+
 ## Layout
 
 - `src/engine/` Script Engine: pure TypeScript, no DOM/Capacitor/I/O (enforced by `tsconfig.engine.json` and an ESLint rule)

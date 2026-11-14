@@ -1,0 +1,15 @@
+=== PAGE 1 ===
+               INT. KITCHEN - DAY
+
+                                     MARA
+                         Hello.
+
+               Beat.
+
+                                     JOE
+                         Hi.
+
+               Beat.
+
+                                     MARA
+                         Bye.

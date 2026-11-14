@@ -41,8 +41,10 @@ const NAMES: Record<string, string> = { esc: 'Escape', ' ': 'Space', spacebar: '
 /** `ctrl+shift+z` → `Ctrl+Shift+Z`: modifiers in a fixed order, a single key upper-cased. */
 export function normalizeKey(spec: string): string {
   const parts = spec.split('+').map((p) => p.trim());
-  if (spec.endsWith('++')) parts.splice(parts.length - 2, 2, '+');
+  if (spec === '+') parts.splice(0, 2, '+');
+  else if (spec.endsWith('++')) parts.splice(parts.length - 2, 2, '+');
   const key = parts.pop() ?? '';
+  if (key === '') return ''; // e.g. a key event with an empty `key`
   const mods = new Set(parts.map((m) => m.toLowerCase()).map((m) => (m === 'mod' || m === 'cmd' || m === 'meta' ? 'ctrl' : m)));
   const k = NAMES[key.toLowerCase()] ?? (key.length === 1 ? key.toUpperCase() : key[0]!.toUpperCase() + key.slice(1).toLowerCase());
   return [mods.has('ctrl') && 'Ctrl', mods.has('alt') && 'Alt', mods.has('shift') && 'Shift', k].filter(Boolean).join('+');

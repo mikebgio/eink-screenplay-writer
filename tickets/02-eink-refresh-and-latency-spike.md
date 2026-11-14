@@ -1,7 +1,7 @@
 ---
 id: 02
 title: Typing-speed test and screen refresh control
-status: todo
+status: needs-device
 blocked_by: [01]
 model: sonnet
 ---
@@ -43,10 +43,10 @@ model: sonnet
 ## Acceptance criteria
 
 - [ ] The plugin builds; on a non-Onyx emulator every method resolves and does nothing (prove it with a Vitest test of the browser fallback and a manual emulator run).
-- [ ] The refresh policy is unit-tested with fake timers and a fake plugin: keystroke → fast; 1500 ms idle → fullRefresh + normal; page-turn event → fullRefresh.
-- [ ] The global no-animation CSS is in place; searching the codebase finds no `transition`/`animation` declarations outside that reset.
+- [x] The refresh policy is unit-tested with fake timers and a fake plugin: keystroke → fast; 1500 ms idle → fullRefresh + normal; page-turn event → fullRefresh.
+- [x] The global no-animation CSS is in place; searching the codebase finds no `transition`/`animation` declarations outside that reset.
 - [ ] The debug latency screen works in a desktop browser.
-- [ ] `docs/latency-test.md` and the `docs/decisions/0001-editor-surface.md` template exist.
+- [x] `docs/latency-test.md` and the `docs/decisions/0001-editor-surface.md` template exist.
 - [ ] (device) Fast mode visibly reduces typing lag on the Note Air 6C; ghosting clears after the 1.5 s pause.
 - [ ] (device) The owner records GO/NO-GO in the decision record. **If NO-GO, set this ticket to `needs-device`, write a summary at the top of `PLAN.md`, and stop. Later UI tickets must be re-planned.**
 
@@ -57,4 +57,25 @@ model: sonnet
 
 ## Handoff notes
 
-_(Fill in: verified Onyx API names and SDK version, measured browser-side numbers.)_
+**Status:** code complete; `needs-device`. Gradle/JDK/adb are not installed on the dev Mac, so the Kotlin plugin was **never compiled** and the "plugin builds" criterion is unticked. `npm test` (197), `npm run typecheck`, `npm run lint` and `npm run build` pass.
+
+**Onyx API, as verified.** Checked against `onyx-intl/OnyxAndroidDemo` (README, `doc/EPD-Screen-Update.md`, `doc/EPD-Update-Mode.md`, `doc/EpdController.md`) via web fetch. Not verified: the demo's Java sources (not retrievable) and anything on the Boox Maven server.
+- SDK: `com.onyx.android.sdk:onyxsdk-device:1.1.11` (the version the demo README gives; newer may exist). Repo: the demo README lists `http://repo.boox.com/repository/maven-public/` plus `https://jitpack.io`; I used the **https** maven-public URL from the ticket and did not add jitpack (the demo adds it for the scribble SDK's dbflow dependency; if Gradle can't resolve a transitive dependency of `onyxsdk-device`, add `maven { url 'https://jitpack.io' }` in `android/build.gradle`).
+- Confirmed in the demo docs: `EpdController.setViewDefaultUpdateMode(view, UpdateMode.GU|REGAL)`, `EpdController.invalidate(view, UpdateMode.GC)`, `EpdController.applyApplicationFastMode(APP, boolean, clear)`, `EpdController.setWebViewContrastOptimize(WebView, boolean)` ("prevents WebViews entering A2 mode"). `UpdateMode` constants: DU, DU_QUALITY, GU, GU_FAST (deprecated), GC, GC_4 (deprecated), ANIMATION, ANIMATION_QUALITY, REGAL, REGAL_D.
+- **Not confirmed:** `EpdController.resetViewUpdateMode` (not in the docs; not used: normal mode is `setViewDefaultUpdateMode(view, REGAL)` instead). The import packages `com.onyx.android.sdk.api.device.epd.{EpdController,UpdateMode}` are from memory; if the build fails on those imports, fix them first.
+- Mapping used: fast=`ANIMATION`, normal=`REGAL`, full=`GC` (via `invalidate`). Ticket 16 can change fast to `DU`/`ANIMATION_QUALITY`, or try `applyApplicationFastMode` / `setWebViewContrastOptimize`; the constants are in one place in `EInkPlugin.kt`.
+- Kotlin was not in the project (Java only). I added the Kotlin Gradle plugin 2.2.20 (`android/build.gradle`, `org.jetbrains.kotlin.android` in `android/app/build.gradle`); the version is a guess that fits AGP 8.13 and may need bumping.
+
+**Design.** `src/platform/eink.ts` (plugin + browser no-op fallback), `refreshPolicy.ts` (`RefreshPolicy`: first text-changing key in the editor -> fast; 1500 ms idle -> normal + full refresh; `pageTurn()` / `overlayChanged()` -> normal + full refresh immediately), `latency.ts` (stats, `KeyTimer`). `App.tsx` wires keydown (capture, `.cm-content` only, text-changing keys), page changes (`shownPage`) and open/close of drawer, snapshots, title form and debug panel. All plugin errors are swallowed. For ticket 15 (volume keys): add key forwarding in `EInkPlugin.kt` (see the comment there) and call `policy.pageTurn()`; the policy object lives in `App`.
+- Debug panel: `Ctrl+Shift+D` or long-press the document name (800 ms). It sits below the editor; "Type test" shows a sample paragraph. Ctrl+D (variable drawer) now ignores Shift so it doesn't also fire.
+- Review follow-ups: page turns fire only from explicit navigation (`turnPage` in `App.tsx`), not from repagination while typing; `KeyTimer` drops a change more than 1 s after its keydown; the Onyx Maven repo is `exclusiveContent` for group `com.onyx.android.sdk` only; `setRefreshMode` validates `mode` before the Onyx check. Not done: Gradle dependency verification metadata for `onyxsdk-device`; restoring the firmware's per-app default after `normal` (no verified reset API; `resetViewUpdateMode` is unconfirmed; ticket 16 can try it). If a keystroke-driven full refresh is ever needed at a page boundary while typing, `turnPage` is the place.
+- Global no-animation CSS was already in `styles.css` (ticket 01); `test/noAnimation.test.ts` now fails if any other `transition`/`animation` declaration appears in `src/` (engine excluded; its `transition:` is an element type).
+
+**Browser-side numbers:** none meaningful. The only measurement was in a hidden headless pane where `requestAnimationFrame` is throttled, so figures would mislead. The decision record has empty tables for the owner.
+
+**Owner checks**
+- (build) Install JDK/SDK per `docs/android-dev-setup-macos.md` and run `npm run apk`; report any Gradle/Kotlin/Onyx-import errors. Ticks "plugin builds".
+- (manual) Run on a non-Onyx emulator: app starts, typing works, no crashes (calls resolve and do nothing).
+- (manual) `npm run dev`, open a script, press `Ctrl+Shift+D`: panel appears, type, numbers fill in. (The panel and key timing were verified only in an isolated mount, not through the full `App`.)
+- (device) Fast mode visibly reduces typing lag on the Note Air 6C; ghosting clears after the 1.5 s pause.
+- (device) Follow `docs/latency-test.md`, fill in `docs/decisions/0001-editor-surface.md`, record GO/NO-GO. If NO-GO: stop per the ticket.

@@ -63,7 +63,7 @@ function apply(view: EditorView, prev: EditState, next: EditState): void {
     endA--;
     endB--;
   }
-  const lineStart = next.text.lastIndexOf('\n', next.cursor - 1) + 1;
+  const lineStart = next.cursor === 0 ? 0 : next.text.lastIndexOf('\n', next.cursor - 1) + 1;
   view.dispatch({
     changes: start === endA && start === endB ? undefined : { from: start, to: endA, insert: b.slice(start, endB) },
     selection: { anchor: next.cursor },
@@ -150,18 +150,12 @@ function source(context: CompletionContext): CompletionResult | null {
   };
 }
 
-const noAnimation = EditorView.baseTheme({
-  '.cm-tooltip': { animation: 'none !important', transition: 'none !important' },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': { animation: 'none !important' },
-});
-
 /** Everything keyboard-first: Tab/Enter/force keys, capitalising, autocomplete and the on-screen keyboard. */
 export function editingExtensions(): Extension[] {
   return [
     modeField,
     capitalizeTyping,
     autocompletion({ override: [source], icons: false, aboveCursor: false, maxRenderedOptions: 12 }),
-    noAnimation,
     // An open suggestion list takes Tab before the Tab/Enter rules; the completion keymap handles Enter and Esc.
     Prec.high(keymap.of([{ key: 'Tab', run: acceptCompletion }, ...commands.editorBindings()])),
     hardwareKeyboardInputMode(),

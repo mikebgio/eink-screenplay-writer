@@ -93,9 +93,18 @@ export interface PageSpec {
   bodyLines: number;
 }
 
-/** What a printed line is: a script element, the page number, or a title-page block. */
+/** What a printed line is: a script element, the page number, `(MORE)`, a scene number, or a title-page block. */
 export type LineKind =
-  ElementType | 'page-number' | 'title' | 'credit' | 'author' | 'source' | 'draft-date' | 'contact';
+  | ElementType
+  | 'page-number'
+  | 'more'
+  | 'scene-number'
+  | 'title'
+  | 'credit'
+  | 'author'
+  | 'source'
+  | 'draft-date'
+  | 'contact';
 
 /** One rendered line on a page. */
 export interface PositionedLine {

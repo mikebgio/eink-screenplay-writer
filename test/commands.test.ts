@@ -87,3 +87,11 @@ describe('command registry', () => {
     expect(e.preventDefault).not.toHaveBeenCalled();
   });
 });
+
+describe('bare "+" key events', () => {
+  it('normalise without throwing (numpad plus, no modifiers)', () => {
+    expect(normalizeKey('+')).toBe('+');
+    expect(eventToKey({ key: '+', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })).toBe('+');
+    expect(eventToKey({ key: '', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })).toBe('');
+  });
+});

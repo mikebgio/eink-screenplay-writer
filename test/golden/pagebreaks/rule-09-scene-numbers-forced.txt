@@ -1,0 +1,24 @@
+=== PAGE 1 ===
+          1    INT. A - DAY                                                  1
+
+               a.
+
+          2    INT. B - DAY                                                  2
+
+               b.
+
+          4A   INT. C - DAY                                                 4A
+
+               c.
+
+          3    INT. D - DAY                                                  3
+
+               d.
+
+          4    INT. E - DAY                                                  4
+
+               e.
+
+          5    INT. F - DAY                                                  5
+
+               f.

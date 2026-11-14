@@ -19,7 +19,11 @@ import {
 } from '../engine';
 import {
   createStorage,
+  EInk,
   FilesystemJournal,
+  KeyTimer,
+  LatencyRecorder,
+  RefreshPolicy,
   onBackground,
   preferencesStore,
   privateSnapshotStore,
@@ -34,6 +38,7 @@ import { SnapshotService, type SnapshotEntry } from '../storage/snapshots';
 import { SnapshotPanel } from './SnapshotPanel';
 import { VariableDrawer } from './VariableDrawer';
 import { PrintView } from './PrintView';
+import { LatencyPanel } from './LatencyPanel';
 import { TitlePageForm } from './TitlePageForm';
 import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList';
 import { StartScreen } from './StartScreen';
@@ -84,6 +89,31 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [titleForm, setTitleForm] = useState<ReturnType<typeof titleValues> | null>(null);
 
+  // E-ink refresh policy and the hidden typing-latency panel (Ctrl+Shift+D / long-press the name).
+  const policy = useMemo(() => new RefreshPolicy(EInk), []);
+  const latency = useMemo(() => new LatencyRecorder(), []);
+  const keyTimer = useMemo(
+    () => new KeyTimer(latency, () => (policy.mode === 'fast' ? 'fast' : 'normal')),
+    [latency, policy],
+  );
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [fastOn, setFastOn] = useState(true);
+  const longPress = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => policy.dispose(), [policy]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!(e.target as HTMLElement | null)?.closest?.('.cm-content')) return;
+      // Only keys that change the text (not arrows or modifiers).
+      if (e.key.length === 1 || ['Enter', 'Backspace', 'Delete', 'Tab'].includes(e.key)) {
+        policy.keystroke();
+        keyTimer.keydown();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [policy, keyTimer]);
+
   // Spell-check word lists: the writer's dictionary, and words ignored in this script only.
   const personal = useMemo(() => new WordList(preferencesStore, PERSONAL_DICTIONARY_KEY), []);
   const ignored = useRef<WordList>(undefined);
@@ -130,6 +160,7 @@ export function App() {
     titlePage(): void;
     layout(): void;
     help(): void;
+    debug(): void;
     find(replace: boolean): void;
   }>(undefined as never);
   actions.current = {
@@ -143,6 +174,7 @@ export function App() {
     titlePage: openTitleForm,
     layout: () => chooseLayoutRef.current(nextLayout(layoutRef.current)),
     help: () => setHelpOpen((o) => !o),
+    debug: () => setDebugOpen((o) => !o),
     find: (replace) => void editor.current?.openFind(replace),
   };
   useEffect(() => {
@@ -153,6 +185,7 @@ export function App() {
       registerCommand({ id: 'layout.next', label: 'Change layout (editor / print / both)', keys: 'Ctrl+P', run: () => actions.current.layout() }),
       registerCommand({ id: 'help.shortcuts', label: 'Shortcut help', keys: 'Ctrl+/', run: () => actions.current.help() }),
       registerCommand({ id: 'snapshot.name', label: 'Name a snapshot', keys: 'Ctrl+Shift+S', ...doc, run: () => actions.current.snapshot() }),
+      registerCommand({ id: 'debug.toggle', label: 'Typing-latency panel', keys: 'Ctrl+Shift+D', run: () => actions.current.debug() }),
       registerCommand({ id: 'title.form', label: 'Title page', keys: 'Ctrl+T', ...doc, run: () => actions.current.titlePage() }),
       registerCommand({ id: 'find.open', label: 'Find', keys: 'Ctrl+F', ...doc, inInputs: false, run: () => actions.current.find(false) }),
       registerCommand({ id: 'find.replace', label: 'Find and replace', keys: 'Ctrl+H', ...doc, inInputs: false, run: () => actions.current.find(true) }),
@@ -195,12 +228,13 @@ export function App() {
   const onChange = useCallback(
     (t: string) => {
       session.edit(t);
+      keyTimer.committed();
       // Typing replaces the journal, so the recovery offer no longer applies.
       setRecovery(null);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setDebounced(t), DEBOUNCE_MS);
     },
-    [session],
+    [session, keyTimer],
   );
 
   const guarded = (fn: () => Promise<void>) => async () => {
@@ -279,6 +313,23 @@ export function App() {
   }, [revision]);
   const shownPage = Math.min(pageIndex, pages.length - 1);
 
+  // Full clean refresh on every page turn and whenever a dialog or drawer opens or closes.
+  // Page turns come only from explicit navigation (see turnPage), not from repagination while typing.
+  const titleOpen = titleForm !== null;
+  const prevOverlays = useRef([drawerOpen, snapOpen, titleOpen, debugOpen]);
+  useEffect(() => {
+    const now = [drawerOpen, snapOpen, titleOpen, debugOpen];
+    if (now.some((v, i) => v !== prevOverlays.current[i])) policy.overlayChanged();
+    prevOverlays.current = now;
+  }, [drawerOpen, snapOpen, titleOpen, debugOpen, policy]);
+  const turnPage = useCallback(
+    (i: number) => {
+      setPageIndex(i);
+      policy.pageTurn();
+    },
+    [policy],
+  );
+
   // Switching to Print only hides the editor, which drops focus; give it to the print view so
   // PgUp / PgDn / Space work straight away.
   const printPane = useRef<HTMLElement>(null);
@@ -347,7 +398,18 @@ export function App() {
         >
           Files
         </button>
-        <span class="doc-name">{current.name}</span>
+        <span
+          class="doc-name"
+          onPointerDown={() => {
+            clearTimeout(longPress.current);
+            longPress.current = setTimeout(() => setDebugOpen(true), 800);
+          }}
+          onPointerUp={() => clearTimeout(longPress.current)}
+          onPointerLeave={() => clearTimeout(longPress.current)}
+          onPointerCancel={() => clearTimeout(longPress.current)}
+        >
+          {current.name}
+        </span>
         <button type="button" onClick={openTitleForm}>
           Title page
         </button>
@@ -436,7 +498,7 @@ export function App() {
             pages={pages}
             pageIndex={shownPage}
             undefinedKeys={undefinedKeys}
-            onPage={setPageIndex}
+            onPage={turnPage}
             onLine={(el) => {
               const line = sourceLineOf(doc, el);
               if (line === undefined) return;
@@ -507,6 +569,17 @@ export function App() {
           />
         )}
       </div>
+      {debugOpen && (
+        <LatencyPanel
+          recorder={latency}
+          fastEnabled={fastOn}
+          onFastEnabled={(on) => {
+            policy.enabled = on;
+            setFastOn(on);
+          }}
+          onClose={() => setDebugOpen(false)}
+        />
+      )}
     </div>
   );
 }

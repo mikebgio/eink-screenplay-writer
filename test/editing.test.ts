@@ -248,3 +248,11 @@ describe('typing a scene with the keyboard only', () => {
     ]);
   });
 });
+
+describe('cursor at offset 0 on an empty first line', () => {
+  it('forcing a type edits that line, not the one below', () => {
+    const r = force({ text: '\nfoo', cursor: 0 }, 'centered');
+    expect(r.text).toBe('>  <\nfoo');
+    expect(r.cursor).toBe(2);
+  });
+});

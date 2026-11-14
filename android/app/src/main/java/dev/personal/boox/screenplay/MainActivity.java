@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(DocumentStorePlugin.class);
         registerPlugin(DevicePlugin.class);
+        registerPlugin(EInkPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -1,0 +1,12 @@
+=== PAGE 1 ===
+          1    INT. A - DAY                                                  1
+
+               Action.
+
+          2    INT. B - DAY                                                  2
+
+               More.
+
+          3    EXT. C - DAY                                                  3
+
+               End.

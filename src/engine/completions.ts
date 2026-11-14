@@ -78,7 +78,7 @@ function finish(from: number, options: Suggestion[], typed: string): Suggestions
  * - on a cue line (character mode, a `@` line, or a recognised cue): the script's characters
  */
 export function suggestionsAt(text: string, cursor: number, mode: Mode = null): Suggestions | null {
-  const lineFrom = text.lastIndexOf('\n', cursor - 1) + 1;
+  const lineFrom = cursor === 0 ? 0 : text.lastIndexOf('\n', cursor - 1) + 1;
   const before = text.slice(lineFrom, cursor);
   const lineIndex = text.slice(0, lineFrom).split('\n').length - 1;
 

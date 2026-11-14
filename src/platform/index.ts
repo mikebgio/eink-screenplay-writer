@@ -29,3 +29,8 @@ export function onBackground(cb: () => void): () => void {
   document.addEventListener('visibilitychange', fn);
   return () => document.removeEventListener('visibilitychange', fn);
 }
+
+export { EInk, browserEInk } from './eink';
+export type { EInkPlugin, RefreshMode } from './eink';
+export { RefreshPolicy, IDLE_MS } from './refreshPolicy';
+export { LatencyRecorder, KeyTimer } from './latency';

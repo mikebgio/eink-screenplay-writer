@@ -34,7 +34,8 @@ interface Bounds {
 }
 
 function boundsOf(text: string, cursor: number): Bounds {
-  const from = text.lastIndexOf('\n', cursor - 1) + 1;
+  // lastIndexOf with a negative start index still checks index 0, so cursor 0 needs its own case.
+  const from = cursor === 0 ? 0 : text.lastIndexOf('\n', cursor - 1) + 1;
   const nl = text.indexOf('\n', cursor);
   const index = text.slice(0, from).split('\n').length - 1;
   return { from, to: nl < 0 ? text.length : nl, index };
