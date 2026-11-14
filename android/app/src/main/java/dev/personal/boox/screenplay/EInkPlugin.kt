@@ -35,13 +35,15 @@ class EInkPlugin : Plugin() {
     @PluginMethod
     fun setRefreshMode(call: PluginCall) {
         val mode = call.getString("mode")
+        // Validate first so a bad call fails the same way on every device.
+        if (mode !in setOf("fast", "normal", "full")) return call.reject("Unknown mode: $mode")
         if (!isOnyx) return call.resolve()
         runOnUi(call) {
             when (mode) {
                 "fast" -> EpdController.setViewDefaultUpdateMode(bridge.webView, UpdateMode.ANIMATION)
                 "normal" -> EpdController.setViewDefaultUpdateMode(bridge.webView, UpdateMode.REGAL)
                 "full" -> EpdController.invalidate(bridge.webView, UpdateMode.GC)
-                else -> return@runOnUi call.reject("Unknown mode: $mode")
+                else -> return@runOnUi
             }
             call.resolve()
         }

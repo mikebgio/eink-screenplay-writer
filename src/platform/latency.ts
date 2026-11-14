@@ -45,6 +45,9 @@ export class LatencyRecorder {
  * Times keydown -> the next animation frame after the editor text changed. Call `keydown()` for
  * each key press and `committed()` when the editor reports a change.
  */
+/** A change this long after its keydown isn't that key's render (key swallowed, paste, ...). */
+export const MAX_KEY_AGE_MS = 1000;
+
 export class KeyTimer {
   private pending: number | null = null;
   constructor(
@@ -62,6 +65,7 @@ export class KeyTimer {
     const start = this.pending;
     if (start === null) return;
     this.pending = null;
+    if (this.now() - start > MAX_KEY_AGE_MS) return;
     const mode = this.mode();
     this.raf(() => this.recorder.add(mode, this.now() - start));
   }

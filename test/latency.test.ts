@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LatencyRecorder, percentile } from '../src/platform/latency';
+import { KeyTimer, LatencyRecorder, MAX_KEY_AGE_MS, percentile } from '../src/platform/latency';
 
 describe('percentile', () => {
   it('median and p95 of 1..100', () => {
@@ -27,6 +27,47 @@ describe('LatencyRecorder', () => {
     const r = new LatencyRecorder();
     r.add('fast', 1);
     r.clear();
+    expect(r.stats().fast.count).toBe(0);
+  });
+});
+
+describe('KeyTimer', () => {
+  function setup() {
+    let t = 0;
+    const r = new LatencyRecorder();
+    const frames: (() => void)[] = [];
+    const k = new KeyTimer(
+      r,
+      () => 'fast',
+      () => t,
+      (cb) => void frames.push(cb),
+    );
+    return { r, k, frames, at: (x: number) => (t = x) };
+  }
+
+  it('records keydown to the next frame after the change', () => {
+    const { r, k, frames, at } = setup();
+    k.keydown();
+    at(30);
+    k.committed();
+    at(50);
+    frames.forEach((f) => f());
+    expect(r.stats().fast).toEqual({ count: 1, median: 50, p95: 50 });
+  });
+
+  it('ignores a change long after a keydown that changed nothing', () => {
+    const { r, k, frames, at } = setup();
+    k.keydown(); // e.g. Backspace at the start of the document
+    at(MAX_KEY_AGE_MS + 5000);
+    k.committed(); // a later paste or programmatic edit
+    frames.forEach((f) => f());
+    expect(r.stats().fast.count).toBe(0);
+  });
+
+  it('ignores a change with no keydown', () => {
+    const { r, k, frames } = setup();
+    k.committed();
+    frames.forEach((f) => f());
     expect(r.stats().fast.count).toBe(0);
   });
 });

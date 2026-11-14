@@ -22,8 +22,13 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // Onyx SDK (onyxsdk-device)
-        maven { url 'https://repo.boox.com/repository/maven-public/' }
+        // Onyx SDK: only the Onyx group may resolve from this repo, and only from here.
+        exclusiveContent {
+            forRepository {
+                maven { url 'https://repo.boox.com/repository/maven-public/' }
+            }
+            filter { includeGroup 'com.onyx.android.sdk' }
+        }
     }
 }
 

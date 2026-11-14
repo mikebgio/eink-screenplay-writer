@@ -100,12 +100,6 @@ export function App() {
   useEffect(() => () => policy.dispose(), [policy]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        e.stopPropagation();
-        setDebugOpen((o) => !o);
-        return;
-      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (!(e.target as HTMLElement | null)?.closest?.('.cm-content')) return;
       // Only keys that change the text (not arrows or modifiers).
@@ -163,6 +157,12 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         setDrawerOpen((o) => !o);
+      }
+      // Ctrl+Shift+D: hidden typing-latency panel.
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        e.stopPropagation();
+        setDebugOpen((o) => !o);
       }
       // Ctrl+Shift+S: name a snapshot.
       if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 's') {
@@ -316,21 +316,21 @@ export function App() {
   const shownPage = Math.min(pageIndex, pages.length - 1);
 
   // Full clean refresh on every page turn and whenever a dialog or drawer opens or closes.
-  const firstRun = useRef(true);
-  const overlays = [drawerOpen, snapOpen, titleForm !== null, debugOpen].join();
+  // Page turns come only from explicit navigation (see turnPage), not from repagination while typing.
+  const titleOpen = titleForm !== null;
+  const prevOverlays = useRef([drawerOpen, snapOpen, titleOpen, debugOpen]);
   useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
-    policy.overlayChanged();
-  }, [overlays, policy]);
-  const lastPage = useRef(shownPage);
-  useEffect(() => {
-    if (lastPage.current === shownPage) return;
-    lastPage.current = shownPage;
-    policy.pageTurn();
-  }, [shownPage, policy]);
+    const now = [drawerOpen, snapOpen, titleOpen, debugOpen];
+    if (now.some((v, i) => v !== prevOverlays.current[i])) policy.overlayChanged();
+    prevOverlays.current = now;
+  }, [drawerOpen, snapOpen, titleOpen, debugOpen, policy]);
+  const turnPage = useCallback(
+    (i: number) => {
+      setPageIndex(i);
+      policy.pageTurn();
+    },
+    [policy],
+  );
 
   // Switching to Print only hides the editor, which drops focus; give it to the print view so
   // PgUp / PgDn / Space work straight away.
@@ -408,6 +408,7 @@ export function App() {
           }}
           onPointerUp={() => clearTimeout(longPress.current)}
           onPointerLeave={() => clearTimeout(longPress.current)}
+          onPointerCancel={() => clearTimeout(longPress.current)}
         >
           {current.name}
         </span>
@@ -498,7 +499,7 @@ export function App() {
             pages={pages}
             pageIndex={shownPage}
             undefinedKeys={undefinedKeys}
-            onPage={setPageIndex}
+            onPage={turnPage}
             onLine={(el) => {
               const line = sourceLineOf(doc, el);
               if (line === undefined) return;
