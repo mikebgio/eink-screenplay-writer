@@ -34,3 +34,6 @@ export { EInk, browserEInk } from './eink';
 export type { EInkPlugin, RefreshMode } from './eink';
 export { RefreshPolicy, IDLE_MS } from './refreshPolicy';
 export { LatencyRecorder, KeyTimer } from './latency';
+export { shareFile } from './share';
+export type { ShareResult } from './share';
+export { loadPdfFonts } from './pdfFonts';

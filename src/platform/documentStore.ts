@@ -3,11 +3,13 @@ import { registerPlugin } from '@capacitor/core';
 /** Thin bridge to the local Kotlin `DocumentStore` plugin (Android SAF). No business logic. */
 export interface DocumentStorePlugin {
   pickOpen(): Promise<{ uri?: string; name?: string }>;
-  pickCreate(o: { suggestedName: string }): Promise<{ uri?: string; name?: string }>;
+  pickCreate(o: { suggestedName: string; mimeType?: string }): Promise<{ uri?: string; name?: string }>;
   pickFolder(): Promise<{ uri?: string }>;
   listFolder(o: { folderUri: string }): Promise<{ files: { uri: string; name: string }[] }>;
   read(o: { uri: string }): Promise<{ text: string }>;
   write(o: { uri: string; text: string }): Promise<void>;
+  /** Binary write; `base64` is the file's bytes. */
+  writeBytes(o: { uri: string; base64: string }): Promise<void>;
   /** Sidecar files live in the `dir` child directory (`.<script>.snapshots`) of the picked folder. */
   sidecarList(o: { folderUri: string; dir: string }): Promise<{ names: string[] }>;
   sidecarRead(o: {

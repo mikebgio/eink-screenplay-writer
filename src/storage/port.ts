@@ -21,11 +21,14 @@ export interface SidecarStore {
 
 export interface StoragePort {
   pickOpen(): Promise<FileRef | null>;
+  /** The file type for the picker follows the extension of `suggestedName` (`.fountain`, `.pdf`, `.fdx`). */
   pickCreate(suggestedName: string): Promise<FileRef | null>;
   pickFolder(): Promise<{ uri: string } | null>;
   listFolder(folderUri: string): Promise<FileRef[]>;
   read(ref: FileRef): Promise<{ text: string; version: string }>;
   write(ref: FileRef, text: string): Promise<{ version: string }>;
+  /** Writes binary data (an exported PDF) to a file the writer just created with `pickCreate`. */
+  writeBytes(ref: FileRef, bytes: Uint8Array): Promise<void>;
   sidecar(ref: FileRef): SidecarStore | null;
 }
 
@@ -46,4 +49,12 @@ export function syncHash(text: string): string {
     h = BigInt.asUintN(64, (h ^ BigInt(text.charCodeAt(i))) * 0x100000001b3n);
   }
   return h.toString(16).padStart(16, '0');
+}
+
+/** MIME type for a file name's extension, used by pickers and the share sheet. */
+export function mimeForName(name: string): string {
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'fdx') return 'application/xml';
+  return 'text/plain';
 }

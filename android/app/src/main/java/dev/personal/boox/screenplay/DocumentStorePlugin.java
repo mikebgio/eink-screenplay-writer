@@ -44,7 +44,7 @@ public class DocumentStorePlugin extends Plugin {
     public void pickCreate(PluginCall call) {
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("text/plain");
+        i.setType(call.getString("mimeType", "text/plain"));
         i.putExtra(Intent.EXTRA_TITLE, call.getString("suggestedName", "Untitled.fountain"));
         i.addFlags(RW | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(call, i, "fileResult");
@@ -153,6 +153,24 @@ public class DocumentStorePlugin extends Plugin {
     public void write(PluginCall call) {
         try {
             writeUri(Uri.parse(call.getString("uri")), call.getString("text", ""));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Write failed: " + e.getMessage());
+        }
+    }
+
+    /** Binary write for exports: `base64` carries the bytes (the Capacitor bridge only moves strings). */
+    @PluginMethod
+    public void writeBytes(PluginCall call) {
+        try {
+            String base64 = call.getString("base64");
+            if (base64 == null) throw new Exception("No data");
+            byte[] data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            try (OutputStream out = getContext().getContentResolver()
+                    .openOutputStream(Uri.parse(call.getString("uri")), "wt")) {
+                if (out == null) throw new Exception("No stream");
+                out.write(data);
+            }
             call.resolve();
         } catch (Exception e) {
             call.reject("Write failed: " + e.getMessage());

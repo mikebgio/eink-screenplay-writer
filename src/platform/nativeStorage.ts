@@ -1,6 +1,7 @@
-import { hashText, type FileRef, type SidecarStore, type StoragePort } from '../storage/port';
+import { hashText, mimeForName, type FileRef, type SidecarStore, type StoragePort } from '../storage/port';
 import { DocumentStore } from './documentStore';
 import { snapshotDirName } from '../storage/snapshots';
+import { toBase64 } from '../storage/bytes';
 
 /** StoragePort over the Android DocumentStore plugin. */
 export class NativeStorage implements StoragePort {
@@ -9,7 +10,7 @@ export class NativeStorage implements StoragePort {
     return r.uri ? { uri: r.uri, name: r.name ?? r.uri } : null;
   }
   async pickCreate(suggestedName: string): Promise<FileRef | null> {
-    const r = await DocumentStore.pickCreate({ suggestedName });
+    const r = await DocumentStore.pickCreate({ suggestedName, mimeType: mimeForName(suggestedName) });
     return r.uri ? { uri: r.uri, name: r.name ?? suggestedName } : null;
   }
   async pickFolder() {
@@ -30,6 +31,9 @@ export class NativeStorage implements StoragePort {
   async write(ref: FileRef, text: string) {
     await DocumentStore.write({ uri: ref.uri, text });
     return { version: await hashText(text) };
+  }
+  async writeBytes(ref: FileRef, bytes: Uint8Array) {
+    await DocumentStore.writeBytes({ uri: ref.uri, base64: toBase64(bytes) });
   }
   sidecar(ref: FileRef): SidecarStore | null {
     const folderUri = ref.folderUri;

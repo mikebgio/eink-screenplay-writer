@@ -550,3 +550,85 @@ button {
   white-space: pre-wrap;
   font-family: 'Courier Prime', monospace;
 }
+
+/* Export dialog (ticket 09): monochrome, no animation. */
+.export-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+}
+.export-form .choice {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+}
+.export-form .choice legend {
+  float: left;
+  min-width: 9em;
+  padding: 0;
+  font-weight: 700;
+}
+.export-form .choice label,
+.export-form .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.export-form input[type='radio'],
+.export-form input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: #000;
+}
+.export-form input[type='text'] {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 2px solid #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  font: inherit;
+}
+.export-warning {
+  margin: 0 0 8px;
+  padding: 8px;
+  border: 3px double #000;
+}
+.export-warning ul {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+.export-warning li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  border-bottom: 1px solid #000;
+}
+.export-warning button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  font: inherit;
+}
+.modal-actions button:disabled {
+  border-style: dashed;
+  color: #000;
+  background: #fff;
+  text-decoration: line-through;
+}
+.export-form .field.check {
+  flex-direction: row;
+}

@@ -1,4 +1,4 @@
-import { hashText, type FileRef, type SidecarStore, type StoragePort } from '../storage/port';
+import { hashText, mimeForName, type FileRef, type SidecarStore, type StoragePort } from '../storage/port';
 
 /* Minimal File System Access API typings (not in lib.dom for all TS versions). */
 interface FsHandle {
@@ -8,7 +8,10 @@ interface FsHandle {
 interface FsFileHandle extends FsHandle {
   getFile(): Promise<File>;
   isSameEntry(other: FsFileHandle): Promise<boolean>;
-  createWritable(): Promise<{ write(d: string): Promise<void>; close(): Promise<void> }>;
+  createWritable(): Promise<{
+    write(d: string | BufferSource): Promise<void>;
+    close(): Promise<void>;
+  }>;
 }
 interface FsDirHandle extends FsHandle {
   values(): AsyncIterable<FsHandle>;
@@ -22,6 +25,26 @@ interface FsWindow {
 const FOUNTAIN_TYPES = [
   { description: 'Fountain', accept: { 'text/plain': ['.fountain', '.txt'] } },
 ];
+
+/** Save-picker file types for a suggested name: Fountain scripts, or an export (`.pdf`, `.fdx`). */
+function saveTypes(name: string) {
+  const ext = /\.[a-z0-9]+$/i.exec(name)?.[0]?.toLowerCase();
+  if (ext === '.pdf') return [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }];
+  if (ext === '.fdx') return [{ description: 'Final Draft', accept: { 'application/xml': ['.fdx'] } }];
+  return FOUNTAIN_TYPES;
+}
+
+/** Saves bytes the way a browser can without a file picker: as a download. */
+export function downloadBytes(name: string, bytes: Uint8Array, mime = mimeForName(name)): void {
+  const url = URL.createObjectURL(new Blob([bytes.slice()], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 /** File System Access API where available (Chrome), for `npm run dev`. */
 export class FsAccessStorage implements StoragePort {
@@ -63,7 +86,7 @@ export class FsAccessStorage implements StoragePort {
   }
   async pickCreate(suggestedName: string) {
     const h = await this.guard(
-      this.win.showSaveFilePicker!({ suggestedName, types: FOUNTAIN_TYPES }),
+      this.win.showSaveFilePicker!({ suggestedName, types: saveTypes(suggestedName) }),
     );
     return h ? this.register(h) : null;
   }
@@ -99,6 +122,13 @@ export class FsAccessStorage implements StoragePort {
     await w.close();
     return { version: await hashText(text) };
   }
+  async writeBytes(ref: FileRef, bytes: Uint8Array) {
+    const h = this.handles.get(ref.uri);
+    if (!h) throw new Error('File handle expired; save again.');
+    const w = await h.createWritable();
+    await w.write(bytes.slice());
+    await w.close();
+  }
   sidecar(): SidecarStore | null {
     return null;
   }
@@ -126,6 +156,8 @@ export class LocalStorageFolder implements StoragePort {
   pickCreate(suggestedName: string) {
     const name = window.prompt('File name', suggestedName);
     if (!name) return Promise.resolve(null);
+    // Exports (PDF, FDX) can't live in the fake folder: they are saved as downloads instead.
+    if (!/\.(fountain|txt)$/i.test(name)) return Promise.resolve({ uri: `download://${name}`, name });
     if (localStorage.getItem(LS_PREFIX + name) === null) localStorage.setItem(LS_PREFIX + name, '');
     return Promise.resolve(this.ref(name));
   }
@@ -143,6 +175,10 @@ export class LocalStorageFolder implements StoragePort {
   async write(ref: FileRef, text: string) {
     localStorage.setItem(LS_PREFIX + ref.name, text);
     return { version: await hashText(text) };
+  }
+  writeBytes(ref: FileRef, bytes: Uint8Array) {
+    downloadBytes(ref.name, bytes);
+    return Promise.resolve();
   }
   sidecar(): SidecarStore | null {
     return null;
