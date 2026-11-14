@@ -37,3 +37,7 @@ export type { SearchOptions, Match } from './search';
 export { checkableWords, scriptWords, wordsIn, wordKey } from './spellScan';
 export type { WordRange } from './spellScan';
 export * from './types';
+export { enter, tab, force, capitalizeInput, HEADING_PREFIX } from './editing';
+export type { EditState, Mode, ForceKind, InputChange } from './editing';
+export { suggestionsAt, characterNames, splitHeading, SCENE_PREFIXES, DEFAULT_TIMES } from './completions';
+export type { Suggestion, Suggestions } from './completions';
