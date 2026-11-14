@@ -64,7 +64,7 @@ Real files. The writer can create a new script from a template, open `.fountain`
   - recovering restores the text; discarding removes the journal
 - [x] The recent files list stays in order, has no duplicates and is capped at 10 (tested).
 - [x] A new script from the template parses with a title page and a scene heading.
-- [x] `npm run dev` can open, edit and save a local `.fountain` file in Chrome.
+- [x] `npm run dev` can open, edit and save a local `.fountain` file in Chrome (single-file Open only; the workspace-folder path is unverified, see Owner checks).
 - [ ] (device) Open, edit and autosave work for a file in local storage on the Boox.
 - [ ] (device) Open, edit and autosave work for a file in Google Drive (needs the Drive app; Google Play must be enabled in the Boox settings). The edit appears on the Mac within a minute.
 - [ ] (device) Whether Drive supports folder access is recorded in Handoff notes.
@@ -83,3 +83,10 @@ Snapshots (11), conflicts (12), export (09/10).
 - **For ticket 12:** `DocumentSession.version` is the last version read or written. **For ticket 11:** `storage.sidecar(ref)` returns a store only when `ref.folderUri` is set. Workspace listing sets it; single-file opens don't. The Android sidecar folder is `.scriptwriter` inside the picked folder. The browser File System Access backend returns `null` for sidecars.
 - **Added dependencies:** `@capacitor/app`, `@capacitor/filesystem`, `@capacitor/preferences`, and `androidx.documentfile` on Android. Run `npm run android` (cap sync) before building the APK.
 - **Autosave edge cases:** an edit made while a write is in flight keeps the journal and schedules another save.
+
+**Owner checks:**
+- (device) Open, edit and autosave work for a file in local storage on the Boox.
+- (device) Open, edit and autosave work for a file in Google Drive (the edit appears on the Mac within a minute).
+- (device) Record whether Drive supports folder access (see the Drive note above).
+- (Chrome) Workspace-folder mode (D1: directory picker, file listing, `.scriptwriter` sidecars) was never run in Chrome; only single-file Open (`pickOpen`) was verified. Try "Choose workspace folder" in real Chrome.
+- `npm run apk` and the Kotlin plugin (`DocumentStorePlugin.java`) are still unbuilt.
