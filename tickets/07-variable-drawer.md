@@ -75,7 +75,16 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 
 ## Handoff notes
 
-**Status:** all criteria except the (device) one are ticked. The UI criteria were verified in the browser on 2026-11-13 (`npm run dev`, Chrome, a stubbed file picker, a test script with HERO, TOWN and an undefined VILLAIN): the drawer showed counts 3/3/1; Show uses selected the right `{{HERO}}` and moved the print view from the title page to page 1; renaming HERO → LEAD changed the definition and all 3 uses, and one Cmd+Z restored all of it; Delete on a key with uses asked "Replace 3 uses with the current value, or leave them undefined?", "Replace with value" inlined the value and removed the `Var-` line, "Leave undefined" removed the line and moved the key to Undefined; undefined keys got a 1px dashed outline (`.var-undefined`, `.print-var-undefined`) in both panes. Ctrl+D toggled the drawer and did nothing on the start screen.
+**Status:** all criteria except the (device) one are ticked. The UI criteria were verified in the browser on 2026-11-13 (`npm run dev`, Chrome, a stubbed file picker, a test script with HERO, TOWN and an undefined VILLAIN):
+
+- **Counts:** the drawer showed 3 / 3 / 1.
+- **Show uses:** selected the right `{{HERO}}` and moved the print view from the title page to page 1.
+- **Rename:** HERO → LEAD changed the definition and all 3 uses; one Cmd+Z restored all of it.
+- **Delete with uses:** asked "Replace 3 uses with the current value, or leave them undefined?". "Replace with value" inlined the value and removed the `Var-` line; "Leave undefined" removed the line and moved the key to Undefined.
+- **Undefined marks:** a 1px dashed outline (`.var-undefined`, `.print-var-undefined`) in both panes.
+- **Ctrl+D:** toggled the drawer, did nothing on the start screen, and inside the drawer's own inputs it left the drawer open and was not intercepted (checked with synthetic key events and a stubbed save picker).
+
+**Build note:** if the app won't build in a fresh worktree because `@capacitor/*` modules are missing, run `npm install` in the worktree.
 
 **Final resolve API** (`src/engine/variables.ts`, exported from `src/engine`):
 
@@ -90,6 +99,5 @@ The export-time warnings dialog and the resolve/keep toggle UI (ticket 09); key 
 **Print view (ticket 05 API):** `PrintView` takes `undefinedKeys` (a `Set` of keys from `diagnostics` with `kind: 'undefined'`) and draws `{{KEY}}` with `.print-var-undefined`. An escaped `\{{KEY}}` that prints as `{{KEY}}` of an undefined key is boxed too (known quirk). "Show uses" shows the display page number (`pageOf`) and moves the editor selection, the cursor line and the print page (`App.jumpToUse`); from Print-only layout it switches to Both. Golden tests: `test/fixtures/variables/` → `test/golden/variables/` (`UPDATE_GOLDEN=1` rewrites).
 
 **Owner checks:**
-- Ctrl+D inside the drawer's own inputs was not checked.
 - (Mac) Does Beat print or keep unknown `Var-` keys on its title page? Not checked.
 - (device) A value change shows on the Boox print view in under about 0.5 s.
