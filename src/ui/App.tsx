@@ -19,7 +19,11 @@ import {
 } from '../engine';
 import {
   createStorage,
+  EInk,
   FilesystemJournal,
+  KeyTimer,
+  LatencyRecorder,
+  RefreshPolicy,
   onBackground,
   preferencesStore,
   privateSnapshotStore,
@@ -34,6 +38,7 @@ import { SnapshotService, type SnapshotEntry } from '../storage/snapshots';
 import { SnapshotPanel } from './SnapshotPanel';
 import { VariableDrawer } from './VariableDrawer';
 import { PrintView } from './PrintView';
+import { LatencyPanel } from './LatencyPanel';
 import { TitlePageForm } from './TitlePageForm';
 import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList';
 import { StartScreen } from './StartScreen';
@@ -82,6 +87,37 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [titleForm, setTitleForm] = useState<ReturnType<typeof titleValues> | null>(null);
 
+  // E-ink refresh policy and the hidden typing-latency panel (Ctrl+Shift+D / long-press the name).
+  const policy = useMemo(() => new RefreshPolicy(EInk), []);
+  const latency = useMemo(() => new LatencyRecorder(), []);
+  const keyTimer = useMemo(
+    () => new KeyTimer(latency, () => (policy.mode === 'fast' ? 'fast' : 'normal')),
+    [latency, policy],
+  );
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [fastOn, setFastOn] = useState(true);
+  const longPress = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => policy.dispose(), [policy]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        e.stopPropagation();
+        setDebugOpen((o) => !o);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!(e.target as HTMLElement | null)?.closest?.('.cm-content')) return;
+      // Only keys that change the text (not arrows or modifiers).
+      if (e.key.length === 1 || ['Enter', 'Backspace', 'Delete', 'Tab'].includes(e.key)) {
+        policy.keystroke();
+        keyTimer.keydown();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [policy, keyTimer]);
+
   // Spell-check word lists: the writer's dictionary, and words ignored in this script only.
   const personal = useMemo(() => new WordList(preferencesStore, PERSONAL_DICTIONARY_KEY), []);
   const ignored = useRef<WordList>(undefined);
@@ -121,7 +157,7 @@ export function App() {
   // Ctrl+D toggles the variable drawer (captured before the editor's own Ctrl+D binding).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
         // Only with a document open, and not while typing in the drawer (Ctrl+D is delete-forward there).
         if (!hasDoc.current || (e.target as HTMLElement | null)?.closest?.('.drawer')) return;
         e.preventDefault();
@@ -186,12 +222,13 @@ export function App() {
   const onChange = useCallback(
     (t: string) => {
       session.edit(t);
+      keyTimer.committed();
       // Typing replaces the journal, so the recovery offer no longer applies.
       setRecovery(null);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setDebounced(t), DEBOUNCE_MS);
     },
-    [session],
+    [session, keyTimer],
   );
 
   const guarded = (fn: () => Promise<void>) => async () => {
@@ -278,6 +315,23 @@ export function App() {
   }, [revision]);
   const shownPage = Math.min(pageIndex, pages.length - 1);
 
+  // Full clean refresh on every page turn and whenever a dialog or drawer opens or closes.
+  const firstRun = useRef(true);
+  const overlays = [drawerOpen, snapOpen, titleForm !== null, debugOpen].join();
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    policy.overlayChanged();
+  }, [overlays, policy]);
+  const lastPage = useRef(shownPage);
+  useEffect(() => {
+    if (lastPage.current === shownPage) return;
+    lastPage.current = shownPage;
+    policy.pageTurn();
+  }, [shownPage, policy]);
+
   // Switching to Print only hides the editor, which drops focus; give it to the print view so
   // PgUp / PgDn / Space work straight away.
   const printPane = useRef<HTMLElement>(null);
@@ -346,7 +400,17 @@ export function App() {
         >
           Files
         </button>
-        <span class="doc-name">{current.name}</span>
+        <span
+          class="doc-name"
+          onPointerDown={() => {
+            clearTimeout(longPress.current);
+            longPress.current = setTimeout(() => setDebugOpen(true), 800);
+          }}
+          onPointerUp={() => clearTimeout(longPress.current)}
+          onPointerLeave={() => clearTimeout(longPress.current)}
+        >
+          {current.name}
+        </span>
         <button type="button" onClick={openTitleForm}>
           Title page
         </button>
@@ -505,6 +569,17 @@ export function App() {
           />
         )}
       </div>
+      {debugOpen && (
+        <LatencyPanel
+          recorder={latency}
+          fastEnabled={fastOn}
+          onFastEnabled={(on) => {
+            policy.enabled = on;
+            setFastOn(on);
+          }}
+          onClose={() => setDebugOpen(false)}
+        />
+      )}
     </div>
   );
 }
