@@ -40,6 +40,7 @@ export function StartScreen(props: {
       {props.error && <p class="error">{props.error}</p>}
       {props.workspaceFiles && list('Workspace', props.workspaceFiles)}
       {props.recents.length > 0 && list('Recent files', props.recents)}
+      <p class="app-version">v{__APP_VERSION__}</p>
     </main>
   );
 }

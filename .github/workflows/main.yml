@@ -59,6 +59,10 @@ jobs:
       - id: apk
         run: npm run apk
 
+      # versionName and versionCode must come from package.json (Gradle reads it; PLAN-2.md, D8).
+      - id: apk_version
+        run: node scripts/release.mjs --verify-apk android/app/build/outputs/apk/debug/output-metadata.json
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-debug
@@ -72,7 +76,11 @@ jobs:
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/changelog.mjs --check-pr "$PR_NUMBER"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The base commit lets the script spot a release PR (one that changes the version), which needs no entry.
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" || echo "Could not fetch the base commit; no release-PR exemption."
+          node scripts/changelog.mjs --check-pr "$PR_NUMBER"
 
       - name: Summary
         if: always()
@@ -84,4 +92,5 @@ jobs:
           OUTCOME_CHANGELOG: ${{ steps.changelog.outcome }}
           OUTCOME_CHANGELOG_PR: ${{ steps.changelog_pr.outcome }}
           OUTCOME_APK: ${{ steps.apk.outcome }}
+          OUTCOME_APK_VERSION: ${{ steps.apk_version.outcome }}
         run: node scripts/ci-summary.mjs >> "$GITHUB_STEP_SUMMARY"

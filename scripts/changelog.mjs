@@ -3,14 +3,17 @@
 //
 //   node scripts/changelog.mjs --check-format      structural checks on CHANGELOG.md (part of `npm run check`)
 //   node scripts/changelog.mjs --check-pr <number> [Unreleased] has a line linking PR <number> (CI, pull_request only)
+//   node scripts/changelog.mjs --notes <X.Y.Z>      print that section's body: the release notes (release workflow)
 //
 // --check-pr reads the event payload from GITHUB_EVENT_PATH when set, and passes without looking at the
-// file when the PR has the `no-changelog` label or was opened by dependabot[bot].
+// file when the PR has the `no-changelog` label, was opened by dependabot[bot], or changes `version` in
+// package.json (a release PR, compared with the payload's base commit).
 //
 // Exit codes: 0 pass, 1 check failed, 2 usage error.
 // No dependencies.
 
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -154,12 +157,15 @@ export function checkFormat(text, opts = {}) {
  * @param {string} text
  * @param {number} number
  * @param {PrEvent | null} [event]
- * @param {{ repoUrl?: string }} [opts]
+ * @param {{ repoUrl?: string, versionChanged?: boolean }} [opts] versionChanged: the PR changes `version` in package.json
  * @returns {CheckResult}
  */
 export function checkPr(text, number, event, opts = {}) {
   const repoUrl = opts.repoUrl ?? REPO_URL;
   const pr = event?.pull_request;
+  if (opts.versionChanged) {
+    return { ok: true, message: `PR #${number} changes the version in package.json: it is a release PR, no CHANGELOG entry needed.` };
+  }
   if (pr?.labels?.some((l) => l.name === NO_CHANGELOG_LABEL)) {
     return { ok: true, message: `PR #${number} has the \`${NO_CHANGELOG_LABEL}\` label: no CHANGELOG entry needed.` };
   }
@@ -185,6 +191,35 @@ export function checkPr(text, number, event, opts = {}) {
   };
 }
 
+/**
+ * Does the PR change `version` in package.json? Compares the checked-out file with the base commit from the
+ * event payload (the workflow fetches that commit first). False when the base can't be read.
+ * @param {PrEvent & { pull_request?: { base?: { sha?: string } } } | null} event
+ */
+function versionChanged(event) {
+  const sha = event?.pull_request?.base?.sha;
+  if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) return false;
+  try {
+    const base = JSON.parse(execFileSync("git", ["show", `${sha}:package.json`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
+    const head = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    return base.version !== head.version;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The body of one section (`Unreleased` or `X.Y.Z`) without its heading: the release notes.
+ * @param {string} text
+ * @param {string} name
+ */
+export function sectionBody(text, name) {
+  const cl = parseChangelog(text);
+  const r = cl.releases.find((x) => x.name === name);
+  if (!r) return null;
+  return cl.lines.slice(r.index + 1, r.end).join("\n").trim();
+}
+
 /** @param {string[]} argv @param {NodeJS.ProcessEnv} env */
 function main(argv, env) {
   const [mode, arg] = argv;
@@ -205,11 +240,20 @@ function main(argv, env) {
       return 2;
     }
     const event = env.GITHUB_EVENT_PATH ? JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")) : null;
-    const result = checkPr(readFileSync(file, "utf8"), number, event);
+    const result = checkPr(readFileSync(file, "utf8"), number, event, { versionChanged: versionChanged(event) });
     (result.ok ? console.log : console.error)(result.message);
     return result.ok ? 0 : 1;
   }
-  console.error("usage: node scripts/changelog.mjs --check-format [file] | --check-pr <PR number>");
+  if (mode === "--notes" && arg) {
+    const body = sectionBody(readFileSync(file, "utf8"), arg);
+    if (!body) {
+      console.error(`CHANGELOG.md has no entries for ${arg}.`);
+      return 1;
+    }
+    console.log(body);
+    return 0;
+  }
+  console.error("usage: node scripts/changelog.mjs --check-format [file] | --check-pr <PR number> | --notes <X.Y.Z>");
   return 2;
 }
 

@@ -16,3 +16,4 @@ android/app/src/main/assets/capacitor.plugins.json
 android/app/src/main/res/xml/config.xml
 *.log
 reports
+release-files

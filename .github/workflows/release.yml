@@ -1,0 +1,150 @@
+name: Release
+
+# A release is a merged PR that changes `version` in package.json (PLAN-2.md, D9).
+# `npm run release:prepare -- <patch|minor|major>` makes that PR. When it merges, this workflow
+# builds the packages, then tags the commit and publishes the GitHub Release in one last step.
+# Most pushes that touch package.json (dependency updates) find the tag already exists and stop.
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch: # retry a failed release
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # No token left in .git/config: npm install scripts and Gradle plugins run in this job. The write
+      # token is only handed (as GH_TOKEN) to the tag check and the publish step.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Stops successfully (every later step skipped) when the tag exists, or when CHANGELOG.md has no
+      # `## [X.Y.Z]` section, which means this commit isn't a release (only release:prepare writes one).
+      - id: version
+        name: Read the version; stop unless it needs releasing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if ! printf '%s\n' "$version" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::package.json version is not X.Y.Z"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" > /dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Tag v$version already exists: nothing to release." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif ! node scripts/changelog.mjs --notes "$version" > /dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "CHANGELOG.md has no [$version] section: this commit isn't a release." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.version.outputs.release == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - if: steps.version.outputs.release == 'true'
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - if: steps.version.outputs.release == 'true'
+        run: npm ci
+
+      - if: steps.version.outputs.release == 'true'
+        run: npm run check
+
+      # Web build and Capacitor sync run without the signing secrets.
+      # (This step and the next are `npm run apk:release`, split so the secrets reach one step.)
+      - if: steps.version.outputs.release == 'true'
+        name: Build the web app and sync Android
+        run: npm run android
+
+      # The keystore exists on disk only while this step runs; the cleanup step below is a backstop.
+      - if: steps.version.outputs.release == 'true'
+        name: Build the signed release APK
+        working-directory: android
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for name in RELEASE_KEYSTORE_BASE64 RELEASE_KEYSTORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}. See docs/release-signing.md."
+            exit 1
+          fi
+          trap 'rm -f "$RELEASE_KEYSTORE_PATH"' EXIT
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RELEASE_KEYSTORE_PATH"
+          unset RELEASE_KEYSTORE_BASE64
+          ./gradlew assembleRelease
+
+      - if: always()
+        name: Delete the keystore
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - if: steps.version.outputs.release == 'true'
+        run: node scripts/release.mjs --verify-apk android/app/build/outputs/apk/release/output-metadata.json
+
+      # Never publish an unsigned or wrongly signed APK (D10). An unsigned build would also be named
+      # app-release-unsigned.apk, so the Package step's copy would fail too.
+      - if: steps.version.outputs.release == 'true'
+        name: Verify the APK signature
+        run: |
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          "$apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+
+      - if: steps.version.outputs.release == 'true'
+        name: Package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p release-files
+          cp android/app/build/outputs/apk/release/app-release.apk "release-files/scriptwriter-v$VERSION.apk"
+          (cd release-files && sha256sum "scriptwriter-v$VERSION.apk" > "scriptwriter-v$VERSION.apk.sha256")
+          (cd dist && zip -qr "../release-files/scriptwriter-web-v$VERSION.zip" .)
+          node scripts/changelog.mjs --notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          ls -l release-files
+
+      # The tag and the release are created together, last, so a failed run leaves neither behind.
+      - if: steps.version.outputs.release == 'true'
+        name: Tag and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          flags=()
+          case "$VERSION" in 0.*) flags+=(--prerelease) ;; esac
+          gh release create "v$VERSION" release-files/* \
+            --title "v$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --target "$GITHUB_SHA" \
+            "${flags[@]}"
+
+      - if: steps.version.outputs.release == 'true'
+        name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: node scripts/release.mjs --summary release-files "$VERSION" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/v$VERSION" >> "$GITHUB_STEP_SUMMARY"

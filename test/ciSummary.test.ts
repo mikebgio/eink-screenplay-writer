@@ -36,6 +36,7 @@ const allSuccess = {
   plan: 'success',
   changelog: 'success',
   apk: 'success',
+  apkVersion: 'success',
 };
 
 describe('ci-summary', () => {
@@ -90,6 +91,21 @@ describe('ci-summary', () => {
     expect(md).toContain('- `test/a.test.ts` outer › inner › no full name');
   });
 
+  it('keeps report text from breaking the Markdown', () => {
+    const md = renderTests({
+      ...passingVitest,
+      numFailedTests: 1,
+      testResults: [
+        {
+          name: '/x/a`b.test.ts',
+          assertionResults: [{ status: 'failed', fullName: 'line one\n## Spoofed heading ```' }],
+        },
+      ],
+    });
+    expect(md).toContain("- `/x/a'b.test.ts` line one ## Spoofed heading '''");
+    expect(md).not.toMatch(/^## Spoofed/m);
+  });
+
   it('counts lint problems and lists the first ten as file:line rule', () => {
     const messages = Array.from({ length: 12 }, (_, i) => ({
       ruleId: i === 0 ? null : 'no-unused-vars',
@@ -125,7 +141,7 @@ describe('ci-summary', () => {
 
   it('lists every check in the Result table even with no outcomes', () => {
     const md = renderResult({});
-    expect(md.match(/\| not run \|/g)).toHaveLength(6);
+    expect(md.match(/\| not run \|/g)).toHaveLength(7);
     expect(md).not.toContain('CHANGELOG entry for this PR');
   });
 

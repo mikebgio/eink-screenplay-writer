@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - FDX and Fountain exchange ([#27](https://github.com/mikebgio/eink-screenplay-writer/pull/27))
 - PDF export ([#28](https://github.com/mikebgio/eink-screenplay-writer/pull/28))
 - Simpler CI with a readable run summary, and a check that every pull request adds a CHANGELOG line ([#29](https://github.com/mikebgio/eink-screenplay-writer/pull/29))
+- Tag and release automation with packages: merging a release PR publishes a signed APK and a web build, and the start screen shows the version ([#29](https://github.com/mikebgio/eink-screenplay-writer/pull/29))
 
 ### Changed
 

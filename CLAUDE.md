@@ -5,6 +5,10 @@ An e-ink screenplay editor for the Boox Note Air 6C: Preact + CodeMirror, wrappe
 - Run `npm run check` before finishing. It runs what CI runs: typecheck, lint, tests, the plan check and the CHANGELOG format check.
 - No `Co-Authored-By` lines or any other AI attribution, in commits, PR descriptions or the CHANGELOG.
 
+## Releases
+
+Never create tags or edit version numbers by hand. Use `npm run release:prepare -- <patch|minor|major>` and open the PR it prepares; merging it publishes the release (see *Releasing* in `README.md`).
+
 ## CHANGELOG
 
 `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). CI fails a PR that has no line for it (`scripts/changelog.mjs`).

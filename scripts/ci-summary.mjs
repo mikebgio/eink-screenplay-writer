@@ -31,9 +31,19 @@ export const CHECKS = [
   // PR-only: hidden on pushes to main, where the step is skipped.
   { key: "changelogPr", label: "CHANGELOG entry for this PR", env: "OUTCOME_CHANGELOG_PR", optional: true },
   { key: "apk", label: "APK", env: "OUTCOME_APK" },
+  { key: "apkVersion", label: "APK version matches package.json", env: "OUTCOME_APK_VERSION" },
 ];
 
 const NOT_RUN = "not run";
+
+// Report contents (test names, file paths, rule ids) go into Markdown: keep each on one line, short,
+// and unable to close a code span, a table cell or a fence.
+/** @param {unknown} s */
+const plain = (s) => String(s).replace(/[\r\n]+/g, " ").replace(/`{3,}/g, "'''").slice(0, 200);
+/** @param {unknown} s */
+const code = (s) => `\`${plain(s).replace(/`/g, "'")}\``;
+/** @param {unknown} s */
+const cell = (s) => plain(s).replace(/\|/g, "\\|");
 
 /** @param {string | undefined} outcome */
 export function outcomeCell(outcome) {
@@ -95,7 +105,7 @@ export function renderTests(report) {
     for (const a of f.assertionResults ?? []) {
       if (a.status !== "failed") continue;
       const name = a.fullName || [...(a.ancestorTitles ?? []), a.title].filter(Boolean).join(" › ");
-      failures.push(`- \`${shortPath(f.name ?? "", undefined)}\` ${name}`);
+      failures.push(`- ${code(shortPath(f.name ?? "", undefined))} ${plain(name)}`);
     }
   }
   if (failures.length) lines.push("", "Failed tests:", "", ...failures);
@@ -116,7 +126,7 @@ export function renderLint(files, base) {
     errors += f.errorCount ?? 0;
     warnings += f.warningCount ?? 0;
     for (const m of f.messages ?? []) {
-      problems.push(`- \`${shortPath(f.filePath, base)}:${m.line ?? "?"}\` ${m.ruleId ?? "(parse error)"}`);
+      problems.push(`- ${code(`${shortPath(f.filePath, base)}:${m.line ?? "?"}`)} ${plain(m.ruleId ?? "(parse error)")}`);
     }
   }
   lines.push(`**${errors}** errors · **${warnings}** warnings`);
@@ -134,10 +144,10 @@ export function renderPackage(apk) {
   lines.push(
     "| | |",
     "|---|---|",
-    `| File | \`${apk.name}\` |`,
+    `| File | ${code(apk.name)} |`,
     `| Size | ${(apk.bytes / 1024 / 1024).toFixed(2)} MB |`,
-    `| SHA-256 | \`${apk.sha256}\` |`,
-    `| versionName | ${apk.versionName ?? "unknown"}${apk.versionCode != null ? ` (versionCode ${apk.versionCode})` : ""} |`,
+    `| SHA-256 | ${code(apk.sha256)} |`,
+    `| versionName | ${cell(apk.versionName ?? "unknown")}${apk.versionCode != null ? ` (versionCode ${cell(apk.versionCode)})` : ""} |`,
   );
   return lines.join("\n");
 }
@@ -149,8 +159,9 @@ export function renderPackage(apk) {
 export function renderPlan(plans, next) {
   const lines = ["## Plan", ""];
   if (!plans || !plans.length) return [...lines, NOT_RUN].join("\n");
-  for (const p of plans) lines.push(`- **${p.file}:** ${p.progress ?? "no progress line"}`);
-  lines.push("", "`plan.mjs --next`:", "", "```", (next ?? "").trim() || NOT_RUN, "```");
+  for (const p of plans) lines.push(`- **${plain(p.file)}:** ${plain(p.progress ?? "no progress line")}`);
+  const nextText = (next ?? "").trim().replace(/`{3,}/g, "'''");
+  lines.push("", "`plan.mjs --next`:", "", "```", nextText || NOT_RUN, "```");
   return lines.join("\n");
 }
 

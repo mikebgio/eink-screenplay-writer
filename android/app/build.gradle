@@ -1,5 +1,19 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
+
+// The version lives in package.json only (PLAN-2.md, D8). scripts/release.mjs computes the same versionCode.
+def appVersion = new JsonSlurper().parse(file('../../package.json')).version as String
+def versionParts = appVersion.tokenize('.')*.toInteger()
+if (versionParts.size() != 3 || versionParts[1] > 99 || versionParts[2] > 99) {
+    throw new GradleException("package.json version must be X.Y.Z with minor and patch below 100, got ${appVersion}")
+}
+def appVersionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+
+// Release signing reads the keystore from the environment (docs/release-signing.md). Debug builds don't need it.
+def releaseSigningEnv = ['RELEASE_KEYSTORE_PATH', 'RELEASE_KEYSTORE_PASSWORD', 'RELEASE_KEY_ALIAS', 'RELEASE_KEY_PASSWORD']
+def missingReleaseSigningEnv = releaseSigningEnv.findAll { !System.getenv(it) }
 
 android {
     namespace = "dev.personal.boox.screenplay"
@@ -8,8 +22,8 @@ android {
         applicationId "dev.personal.boox.screenplay"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -17,13 +31,35 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (missingReleaseSigningEnv.isEmpty()) {
+                storeFile file(System.getenv('RELEASE_KEYSTORE_PATH'))
+                storePassword System.getenv('RELEASE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('RELEASE_KEY_ALIAS')
+                keyPassword System.getenv('RELEASE_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }
+
+// A release build never falls back to an unsigned or debug-signed APK (D10).
+def checkReleaseSigning = tasks.register('checkReleaseSigning') {
+    def missing = missingReleaseSigningEnv
+    doLast {
+        if (!missing.isEmpty()) {
+            throw new GradleException("Release signing needs these environment variables: ${missing.join(', ')}. See docs/release-signing.md.")
+        }
+    }
+}
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach { dependsOn checkReleaseSigning }
 
 repositories {
     flatDir{

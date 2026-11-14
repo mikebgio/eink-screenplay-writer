@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "check": "npm run typecheck && npm run lint && npm test && node scripts/plan.mjs --check && node scripts/changelog.mjs --check-format",
     "android": "npm run build && cap sync android",
-    "apk": "npm run android && cd android && ./gradlew assembleDebug"
+    "apk": "npm run android && cd android && ./gradlew assembleDebug",
+    "apk:release": "npm run android && cd android && ./gradlew assembleRelease",
+    "release:prepare": "node scripts/release.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.2",
