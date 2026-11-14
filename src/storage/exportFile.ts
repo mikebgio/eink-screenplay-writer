@@ -25,14 +25,19 @@ export function suggestedExportName(title: string, now: Date, extension: string)
   return `${base} – ${isoDate(now)}.${extension}`;
 }
 
-/** Asks for a file with the storage port's picker and writes the export to it; null if cancelled. */
+/**
+ * Asks for a file with the storage port's picker and writes the export to it; null if cancelled. The
+ * picker opens first and `data` (a function builds it lazily) is produced afterwards, so a slow build
+ * cannot outlive the click that browsers require for a save picker.
+ */
 export async function saveExport(
   storage: StoragePort,
   suggestedName: string,
-  data: ExportData,
+  data: ExportData | (() => ExportData | Promise<ExportData>),
 ): Promise<FileRef | null> {
   const ref = await storage.pickCreate(suggestedName);
   if (!ref) return null;
-  await storage.writeBytes(ref, exportBytes(data));
+  const built = typeof data === 'function' ? await data() : data;
+  await storage.writeBytes(ref, exportBytes(built));
   return ref;
 }

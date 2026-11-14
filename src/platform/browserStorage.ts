@@ -156,8 +156,14 @@ export class LocalStorageFolder implements StoragePort {
   pickCreate(suggestedName: string) {
     const name = window.prompt('File name', suggestedName);
     if (!name) return Promise.resolve(null);
-    // Exports (PDF, FDX) can't live in the fake folder: they are saved as downloads instead.
-    if (!/\.(fountain|txt)$/i.test(name)) return Promise.resolve({ uri: `download://${name}`, name });
+    // Exports (PDF, FDX) can't live in the fake folder: they are saved as downloads instead. What kind of
+    // file this is comes from the suggested name, not from what was typed: a new script named "Untitled"
+    // must still be a script.
+    if (/\.(pdf|fdx)$/i.test(suggestedName)) {
+      const ext = suggestedName.slice(suggestedName.lastIndexOf('.'));
+      const file = name.toLowerCase().endsWith(ext.toLowerCase()) ? name : name + ext;
+      return Promise.resolve({ uri: `download://${file}`, name: file });
+    }
     if (localStorage.getItem(LS_PREFIX + name) === null) localStorage.setItem(LS_PREFIX + name, '');
     return Promise.resolve(this.ref(name));
   }

@@ -86,14 +86,20 @@ export function ExportDialog(props: ExportDialogProps) {
   };
   const blocked = blockingKeys(props.undefinedKeys, options, format.controls, anyway);
 
-  /** Builds the file, then hands it to `deliver`; a failure is shown in the dialog, not lost. */
-  const run = async (deliver: (name: string, data: Uint8Array | string) => Promise<string | null>) => {
+  /**
+   * Runs `deliver` with the suggested file name and a function that builds the file. The build is lazy so
+   * a delivery can open its picker first: a browser only allows a save picker shortly after the click, and
+   * building (font fetch, long script) can take longer. A failure is shown in the dialog, not lost.
+   */
+  const run = async (
+    deliver: (name: string, build: () => Promise<Uint8Array | string>) => Promise<string | null>,
+  ) => {
     setBusy(true);
     setError(null);
     try {
       const now = new Date();
-      const data = await format.run({ text: getText(), options, now, fonts: loadPdfFonts });
-      const message = await deliver(suggestedExportName(title, now, format.extension), data);
+      const build = () => format.run({ text: getText(), options, now, fonts: loadPdfFonts });
+      const message = await deliver(suggestedExportName(title, now, format.extension), build);
       if (message) props.onDone(message);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -102,13 +108,13 @@ export function ExportDialog(props: ExportDialogProps) {
     }
   };
   const save = () =>
-    run(async (name, data) => {
-      const ref = await saveExport(storage, name, data);
+    run(async (name, build) => {
+      const ref = await saveExport(storage, name, build);
       return ref ? `Saved ${ref.name}` : null;
     });
   const share = () =>
-    run(async (name, data) => {
-      const r = await shareFile(name, exportBytes(data), format.mime);
+    run(async (name, build) => {
+      const r = await shareFile(name, exportBytes(await build()), format.mime);
       return r === 'cancelled' ? null : r === 'downloaded' ? `Downloaded ${name}` : `Shared ${name}`;
     });
 
