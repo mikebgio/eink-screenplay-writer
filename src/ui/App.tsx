@@ -47,6 +47,8 @@ import { ShortcutHelp } from './ShortcutHelp';
 import { ExportDialog } from './ExportDialog';
 import { EXPORT_FORMATS } from './exportFormats';
 import { exportOptionsKey, parseExportOptions, type ExportOptions } from './exportOptions';
+import { ExchangeMenu } from './ExchangeMenu';
+import { importFdxFile, isFdxName } from '../storage/exchange';
 
 const DEBOUNCE_MS = 150;
 
@@ -294,9 +296,15 @@ export function App() {
     await storage.write(ref, newScriptTemplate());
     await openRef(ref);
   });
+  /** Opens a picked file; an `.fdx` is converted to a new `.fountain` first (ticket 10). */
+  const openPicked = async (ref: FileRef) => {
+    if (!isFdxName(ref.name)) return openRef(ref);
+    const converted = await importFdxFile(storage, ref);
+    if (converted) await openRef(converted);
+  };
   const openFile = guarded(async () => {
     const ref = await storage.pickOpen();
-    if (ref) await openRef(ref);
+    if (ref) await openPicked(ref);
   });
   const chooseFolder = guarded(async () => {
     const f = await storage.pickFolder();
@@ -476,6 +484,14 @@ export function App() {
         >
           Snapshots
         </button>
+        <ExchangeMenu
+          storage={storage}
+          scriptName={current.name}
+          getText={() => editor.current?.getText() ?? session.text}
+          undefinedKeys={undefinedKeys}
+          onDone={setToast}
+          onError={setToast}
+        />
         <span class="save-status">{STATUS_LABEL[status]}</span>
         <span class="save-status">
           {paged.pageCount} pp · {formatRunningTime(paged.estimatedMinutes)}
