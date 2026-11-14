@@ -1,7 +1,7 @@
 ---
 id: 20
 title: Tag and release automation with packages
-status: todo
+status: in-progress
 blocked_by: [17, 19]
 model: sonnet
 plan: PLAN-2.md

@@ -1,7 +1,7 @@
 ---
 id: 19
 title: CHANGELOG rules and check
-status: todo
+status: in-progress
 blocked_by: [17]
 model: sonnet
 plan: PLAN-2.md

@@ -13,33 +13,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  web:
+  # The job id and name "ci" is the required status check on main (ticket 18). Don't rename it.
+  ci:
+    name: ci
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: lts/*
-          cache: npm
-
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
-
-  android:
-    needs: web
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -47,25 +27,45 @@ jobs:
           cache: npm
 
       # The Gradle daemon is pinned to Java 21 (android/gradle/gradle-daemon-jvm.properties).
-      # Fail early if setup-java did not put JDK 21 first on the path.
-      - name: Check Java version
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME"
-          java -version 2>&1 | grep -q 'version "21' || { echo "Expected JDK 21"; exit 1; }
-
-      - name: Install Android SDK packages if missing
-        run: |
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -d "$ANDROID_HOME/platforms/android-36" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
-            yes | "$SDKMANAGER" --licenses > /dev/null
-            "$SDKMANAGER" "platforms;android-36" "build-tools;35.0.0"
-          fi
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
 
       - run: npm ci
-      - run: npm run apk
+
+      # These steps are `npm run check`, split up so each gets its own outcome in the summary.
+      # Keep the two lists the same: a check added to `check` in package.json gets a step here
+      # (with an id), an OUTCOME_ variable on the summary step, and a row in scripts/ci-summary.mjs.
+      - id: typecheck
+        run: npm run typecheck
+
+      - id: lint
+        run: npm run lint -- --format json --output-file reports/eslint.json
+
+      - id: tests
+        run: npm test -- --reporter=default --reporter=github-actions --reporter=json --outputFile.json=reports/vitest.json
+
+      - id: plan
+        run: node scripts/plan.mjs --check
+
+      # Builds the web app (once), syncs Capacitor, then gradle assembleDebug.
+      - id: apk
+        run: npm run apk
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-debug
           if-no-files-found: error
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Summary
+        if: always()
+        env:
+          OUTCOME_TYPECHECK: ${{ steps.typecheck.outcome }}
+          OUTCOME_LINT: ${{ steps.lint.outcome }}
+          OUTCOME_TESTS: ${{ steps.tests.outcome }}
+          OUTCOME_PLAN: ${{ steps.plan.outcome }}
+          OUTCOME_APK: ${{ steps.apk.outcome }}
+        run: node scripts/ci-summary.mjs >> "$GITHUB_STEP_SUMMARY"

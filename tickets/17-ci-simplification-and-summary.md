@@ -1,7 +1,7 @@
 ---
 id: 17
 title: Simpler CI with a readable run summary
-status: todo
+status: needs-device
 blocked_by: []
 model: sonnet
 plan: PLAN-2.md
@@ -69,9 +69,9 @@ Also turn on Vitest's `github-actions` reporter in CI so failed tests appear as 
 
 ## Acceptance criteria
 
-- [ ] `npm run check` exists and runs typecheck, lint, tests and the plan check; `PLAN.md` rule 5 and `README.md` name it.
-- [ ] The workflow has exactly one job, `ci`; dependencies are installed once and the web app is built once per run.
-- [ ] `scripts/ci-summary.mjs` has unit tests for its rendering: all passing, a failed test (names listed), lint problems, and "not run" when a result file is missing.
+- [x] `npm run check` exists and runs typecheck, lint, tests and the plan check; `PLAN.md` rule 5 and `README.md` name it.
+- [x] The workflow has exactly one job, `ci`; dependencies are installed once and the web app is built once per run.
+- [x] `scripts/ci-summary.mjs` has unit tests for its rendering: all passing, a failed test (names listed), lint problems, and "not run" when a result file is missing.
 - [ ] A CI run on this ticket's PR shows the five summary sections on the run page (paste the rendered summary into Handoff notes).
 - [ ] A deliberately failing test pushed to the PR branch (then reverted) produces a red run whose summary names the test, and an annotation on the diff.
 - [ ] The run is no slower than before (record the before and after durations in Handoff notes).
@@ -82,4 +82,23 @@ The required status check (18), the changelog check (19), release builds (20), a
 
 ## Handoff notes
 
-_(Fill in: the step ids, which removed steps had to stay, run durations, and how later tickets add a check to both `npm run check` and the workflow.)_
+**Built.** `npm run check` in `package.json`; one job `ci` in `.github/workflows/main.yml`; `scripts/ci-summary.mjs` (pure render functions exported for `test/ciSummary.test.ts`; the CLI part only runs when the file is executed). `tsconfig.json` now has `allowJs: true` so tests can import the `.mjs` scripts and get inferred types (`checkJs` stays off). `reports/` (the JSON reports CI writes) is git-ignored.
+
+**Step ids:** `typecheck`, `lint`, `tests`, `plan`, `apk`, then the upload and the `Summary` step (`if: always()`). Each id's `steps.<id>.outcome` is passed to the summary as `OUTCOME_<ID>`. Anything other than `success`/`failure` (a step skipped because an earlier one failed, or a step that didn't exist) shows as "not run".
+
+- `lint` runs `npm run lint -- --format json --output-file reports/eslint.json`, so the log shows no stylish output; the problems are in the summary's Lint section.
+- `tests` runs `npm test -- --reporter=default --reporter=github-actions --reporter=json --outputFile.json=reports/vitest.json`. Vitest drops its automatic `github-actions` reporter once reporters are given on the command line, so it's listed explicitly.
+
+**Removed steps.** "Check Java version": removed, as the ticket says. "Install Android SDK packages if missing": removed. The log of run 43647719368 (main, 2026-11-14, image ubuntu-26.04 20261111) shows the step finished in under a second with no `sdkmanager` output, so `platforms;android-36` and `build-tools;35.0.0` were already installed. If a future runner image drops them, Gradle fails with "Failed to find target android-36"; put the step back then.
+
+**Durations, before:** run 43647719368 took 2 min 27 s wall-clock (job `web` 1 min 15 s, then job `android` 1 min 7 s, each with its own checkout, setup-node and `npm ci`; the web app was built in both). After: fill in from this PR's first run.
+
+**Adding a check later (tickets 19, 20 and beyond):** add it to `check` in `package.json`; add a step with an `id` to `main.yml` in the same place in the order; pass its outcome to the `Summary` step as `OUTCOME_<ID>`; add a row to `CHECKS` in `scripts/ci-summary.mjs` (`optional: true` hides the row when the step didn't run, for PR-only checks). The comment above the check steps in `main.yml` says this.
+
+**Not run locally:** the workflow itself (no `actionlint` on the dev Mac) and the APK build (no JDK). The summary script was run locally against real Vitest and ESLint reports.
+
+**Owner checks** (need a CI run on this PR, which the sandbox can't push):
+
+- (manual) The run page of this PR shows the five summary sections. Paste the rendered summary here.
+- (manual) Push a deliberately failing test to the PR branch, check the run is red, the summary names the test and the diff shows an annotation; then revert it.
+- (manual) Record this PR's run duration next to the 2 min 27 s above.

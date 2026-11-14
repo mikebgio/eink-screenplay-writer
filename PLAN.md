@@ -125,7 +125,7 @@ Legend: ✅ done · 📱 code done, waiting for on-device check · 🚧 in progr
 2. **Claim it:** set `status: in-progress` in the ticket's frontmatter, then run `node scripts/plan.mjs`.
 3. **Work test-first through the seams in the spec:** the Script Engine (pure; no DOM, I/O or Capacitor) and the Storage port (tested with `MemoryStorage`). Test behaviour, not internals.
 4. Tick each acceptance criterion (`- [x]`) as you meet it. Criteria marked **(device)** or **(manual)** need the owner on the Boox or the Mac. Don't tick them yourself; list them under Handoff notes as "Owner checks".
-5. **Before finishing:** run `npm test`, `npm run typecheck` and `npm run lint`; all must pass.
+5. **Before finishing:** run `npm run check` (typecheck, lint, tests and the plan check); it must pass.
 6. Write **Handoff notes** in the ticket: decisions, API names and quirks later tickets need.
 7. **Set the status:**
    - `done` if every criterion is ticked

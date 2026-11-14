@@ -37,10 +37,11 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 ```bash
 npm install
 npm run dev        # editor + print view in a desktop browser
-npm test           # Vitest (engine tests)
-npm run typecheck
-npm run lint
+npm run check      # everything CI checks: typecheck, lint, tests, plan up to date
+npm test           # Vitest only
 ```
+
+Run `npm run check` before pushing. CI runs the same checks (as separate steps, so each shows its own result), builds the APK and writes a summary on the run page.
 
 ## Build the APK
 
