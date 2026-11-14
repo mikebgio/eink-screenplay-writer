@@ -125,7 +125,7 @@ Legend: ✅ done · 📱 code done, waiting for on-device check · 🚧 in progr
 2. **Claim it:** set `status: in-progress` in the ticket's frontmatter, then run `node scripts/plan.mjs`.
 3. **Work test-first through the seams in the spec:** the Script Engine (pure; no DOM, I/O or Capacitor) and the Storage port (tested with `MemoryStorage`). Test behaviour, not internals.
 4. Tick each acceptance criterion (`- [x]`) as you meet it. Criteria marked **(device)** or **(manual)** need the owner on the Boox or the Mac. Don't tick them yourself; list them under Handoff notes as "Owner checks".
-5. **Before finishing:** run `npm run check` (typecheck, lint, tests and the plan check); it must pass.
+5. **Before finishing:** run `npm run check` (typecheck, lint, tests, the plan check and the CHANGELOG format check); it must pass.
 6. Write **Handoff notes** in the ticket: decisions, API names and quirks later tickets need.
 7. **Set the status:**
    - `done` if every criterion is ticked
@@ -135,6 +135,7 @@ Legend: ✅ done · 📱 code done, waiting for on-device check · 🚧 in progr
 8. **Commit** with the message `NN: <ticket title>`. **Don't add `Co-Authored-By` or any other AI attribution lines.** Don't push unless asked.
 9. **Don't revisit decisions** written in the spec or the ticket. If one turns out to be wrong, stop, explain why in Handoff notes, and ask the owner.
 10. **Use cheaper models where they fit:** a ticket marked `model: haiku`, or a step marked *Haiku-suitable*, can be handed to a Haiku subagent. Check its output in the main session.
+11. **Add your CHANGELOG line** (see `CLAUDE.md`).
 
 ## Suggested order
 

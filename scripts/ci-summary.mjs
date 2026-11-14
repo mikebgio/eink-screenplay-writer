@@ -27,6 +27,9 @@ export const CHECKS = [
   { key: "lint", label: "Lint", env: "OUTCOME_LINT" },
   { key: "tests", label: "Tests", env: "OUTCOME_TESTS" },
   { key: "plan", label: "Plan up to date", env: "OUTCOME_PLAN" },
+  { key: "changelog", label: "CHANGELOG format", env: "OUTCOME_CHANGELOG" },
+  // PR-only: hidden on pushes to main, where the step is skipped.
+  { key: "changelogPr", label: "CHANGELOG entry for this PR", env: "OUTCOME_CHANGELOG_PR", optional: true },
   { key: "apk", label: "APK", env: "OUTCOME_APK" },
 ];
 
@@ -65,8 +68,8 @@ export function renderResult(input) {
   const outcomes = input.outcomes ?? {};
   const lines = ["## Result", "", "| Check | Result |", "|---|---|"];
   for (const c of CHECKS) {
-    // Optional checks (the PR-only CHANGELOG check) are left out entirely when the step didn't exist.
-    if (c.optional && !outcomes[c.key]) continue;
+    // Optional checks (the PR-only CHANGELOG check) are left out when the step didn't run.
+    if (c.optional && outcomes[c.key] !== "success" && outcomes[c.key] !== "failure") continue;
     lines.push(`| ${c.label} | ${outcomeCell(outcomes[c.key])} |`);
   }
   return lines.join("\n");

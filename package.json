@@ -9,7 +9,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.engine.json",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint && npm test && node scripts/plan.mjs --check",
+    "check": "npm run typecheck && npm run lint && npm test && node scripts/plan.mjs --check && node scripts/changelog.mjs --check-format",
     "android": "npm run build && cap sync android",
     "apk": "npm run android && cd android && ./gradlew assembleDebug"
   },

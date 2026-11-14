@@ -29,7 +29,14 @@ const passingVitest = {
   ],
 };
 
-const allSuccess = { typecheck: 'success', lint: 'success', tests: 'success', plan: 'success', apk: 'success' };
+const allSuccess = {
+  typecheck: 'success',
+  lint: 'success',
+  tests: 'success',
+  plan: 'success',
+  changelog: 'success',
+  apk: 'success',
+};
 
 describe('ci-summary', () => {
   it('renders all five sections for a passing run', () => {
@@ -118,6 +125,13 @@ describe('ci-summary', () => {
 
   it('lists every check in the Result table even with no outcomes', () => {
     const md = renderResult({});
-    expect(md.match(/\| not run \|/g)).toHaveLength(5);
+    expect(md.match(/\| not run \|/g)).toHaveLength(6);
+    expect(md).not.toContain('CHANGELOG entry for this PR');
+  });
+
+  it('shows the PR-only CHANGELOG check only when it ran', () => {
+    expect(renderResult({ outcomes: { changelogPr: 'skipped' } })).not.toContain('CHANGELOG entry for this PR');
+    expect(renderResult({ outcomes: { changelogPr: 'failure' } })).toContain('| CHANGELOG entry for this PR | ❌ |');
+    expect(renderResult({ outcomes: { changelogPr: 'success' } })).toContain('| CHANGELOG entry for this PR | ✅ |');
   });
 });

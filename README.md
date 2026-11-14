@@ -37,7 +37,7 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 ```bash
 npm install
 npm run dev        # editor + print view in a desktop browser
-npm run check      # everything CI checks: typecheck, lint, tests, plan up to date
+npm run check      # everything CI checks: typecheck, lint, tests, plan up to date, CHANGELOG format
 npm test           # Vitest only
 ```
 
