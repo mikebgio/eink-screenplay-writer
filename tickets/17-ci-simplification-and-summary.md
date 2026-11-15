@@ -74,7 +74,7 @@ Also turn on Vitest's `github-actions` reporter in CI so failed tests appear as 
 - [x] `scripts/ci-summary.mjs` has unit tests for its rendering: all passing, a failed test (names listed), lint problems, and "not run" when a result file is missing.
 - [ ] A CI run on this ticket's PR shows the five summary sections on the run page (paste the rendered summary into Handoff notes).
 - [ ] A deliberately failing test pushed to the PR branch (then reverted) produces a red run whose summary names the test, and an annotation on the diff.
-- [ ] The run is no slower than before (record the before and after durations in Handoff notes).
+- [x] The run is no slower than before (record the before and after durations in Handoff notes).
 
 ## Out of scope
 
@@ -101,4 +101,12 @@ The required status check (18), the changelog check (19), release builds (20), a
 
 - (manual) The run page of this PR shows the five summary sections. Paste the rendered summary here.
 - (manual) Push a deliberately failing test to the PR branch, check the run is red, the summary names the test and the diff shows an annotation; then revert it.
-- (manual) Record this PR's run duration next to the 2 min 27 s above.
+- (manual) Done: 2 min 9 s (see below).
+
+**After review (PR #29):**
+
+- The check steps and the APK build run with `if: !cancelled() && steps.install.outcome == 'success'`, so a failing check no longer hides the later checks' results; the job still fails. `apk_version` and the upload run only when the APK built.
+- The Lint section shows each problem's message (`file:line rule: message`), since the lint step's log has only JSON.
+- `/reports/` and `/release-files/` are anchored in `.gitignore`.
+- Dependency caching: npm is cached by `setup-node` (`~/.npm`; the first run on this PR hit it and `npm ci` took 5 s). Gradle moved from `setup-java`'s `cache: gradle` to `gradle/actions/setup-gradle` (`cache-provider: basic`, the open-source GitHub Actions cache, not the default commercial one; its job summary off). `setup-java` keys on an exact hash of the `*.gradle` files, so this PR's first run, which changed `build.gradle`, missed and re-downloaded every Gradle dependency; `setup-gradle` restores the closest entry instead. Its entries are written only by runs on `main`; PR runs read them.
+- First run on this PR (run 43655728445, before these changes): 2 min 9 s wall-clock, against 2 min 27 s before.

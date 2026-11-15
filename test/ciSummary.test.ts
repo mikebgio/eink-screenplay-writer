@@ -111,14 +111,22 @@ describe('ci-summary', () => {
       ruleId: i === 0 ? null : 'no-unused-vars',
       severity: i < 11 ? 2 : 1,
       line: i + 1,
-      message: 'x',
+      message: i === 0 ? 'Unexpected token' : `'v${i}' is defined but never used`,
     }));
     const md = renderLint([{ filePath: '/repo/src/bad.ts', messages, errorCount: 11, warningCount: 1 }], root);
     expect(md).toContain('**11** errors · **1** warnings');
-    expect(md).toContain('- `src/bad.ts:1` (parse error)');
-    expect(md).toContain('- `src/bad.ts:10` no-unused-vars');
+    expect(md).toContain('- `src/bad.ts:1` (parse error): Unexpected token');
+    expect(md).toContain("- `src/bad.ts:10` no-unused-vars: 'v9' is defined but never used");
     expect(md).not.toContain('src/bad.ts:11`');
     expect(md).toContain('- … and 2 more');
+  });
+
+  it('keeps lint messages from opening a code span', () => {
+    const md = renderLint(
+      [{ filePath: '/repo/src/a.ts', messages: [{ ruleId: 'r', line: 1, message: 'use `x` here' }], errorCount: 1 }],
+      root,
+    );
+    expect(md).toContain("- `src/a.ts:1` r: use 'x' here");
   });
 
   it('shows "not run" for missing results and failed outcomes as ❌', () => {

@@ -46,7 +46,7 @@ flowchart LR
 
 | | # | Ticket | Model | Blocked by | Criteria | State |
 |---|---|---|---|---|---|---|
-| [x] | 17 | [Simpler CI with a readable run summary](tickets/17-ci-simplification-and-summary.md) | sonnet | — | 3/6 | 📱 needs-device |
+| [x] | 17 | [Simpler CI with a readable run summary](tickets/17-ci-simplification-and-summary.md) | sonnet | — | 4/6 | 📱 needs-device |
 | [ ] | 18 | [Merge gates on main](tickets/18-repo-merge-gates.md) | haiku | 17 | 0/4 | 🟢 ready |
 | [x] | 19 | [CHANGELOG rules and check](tickets/19-changelog-rules.md) | sonnet | 17 | 5/6 | 📱 needs-device |
 | [x] | 20 | [Tag and release automation with packages](tickets/20-release-automation.md) | sonnet | 17, 19 | 4/8 | 📱 needs-device |

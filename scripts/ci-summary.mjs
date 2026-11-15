@@ -126,7 +126,9 @@ export function renderLint(files, base) {
     errors += f.errorCount ?? 0;
     warnings += f.warningCount ?? 0;
     for (const m of f.messages ?? []) {
-      problems.push(`- ${code(`${shortPath(f.filePath, base)}:${m.line ?? "?"}`)} ${plain(m.ruleId ?? "(parse error)")}`);
+      // The lint step writes JSON only, so this list is the one place the messages appear.
+      const text = `${m.ruleId ?? "(parse error)"}: ${m.message ?? ""}`;
+      problems.push(`- ${code(`${shortPath(f.filePath, base)}:${m.line ?? "?"}`)} ${plain(text).replace(/`/g, "'")}`);
     }
   }
   lines.push(`**${errors}** errors · **${warnings}** warnings`);

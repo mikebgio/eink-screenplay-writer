@@ -33,37 +33,56 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
-      - run: npm ci
+      # Caches Gradle dependencies and the wrapper. Unlike setup-java's `cache: gradle` (an exact key on
+      # the *.gradle files), it restores the closest entry when a build file changes. Entries are written
+      # by runs on main; PR runs read them. `basic` is the open-source GitHub Actions cache.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+          add-job-summary: never
+
+      # npm packages are cached by setup-node (~/.npm, keyed on package-lock.json).
+      - id: install
+        run: npm ci
 
       # These steps are `npm run check`, split up so each gets its own outcome in the summary.
       # Keep the two lists the same: a check added to `check` in package.json gets a step here
-      # (with an id), an OUTCOME_ variable on the summary step, and a row in scripts/ci-summary.mjs.
+      # (with an id and the same `if`), an OUTCOME_ variable on the summary step, and a row in
+      # scripts/ci-summary.mjs. Each runs even when an earlier check failed, so one failure doesn't
+      # hide the others' results; none runs if the install failed.
       - id: typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
 
       - id: lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run lint -- --format json --output-file reports/eslint.json
 
       - id: tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test -- --reporter=default --reporter=github-actions --reporter=json --outputFile.json=reports/vitest.json
 
       - id: plan
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/plan.mjs --check
 
       - id: changelog
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/changelog.mjs --check-format
 
       # Builds the web app (once), syncs Capacitor, then gradle assembleDebug.
       - id: apk
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run apk
 
       # versionName and versionCode must come from package.json (Gradle reads it; PLAN-2.md, D8).
       - id: apk_version
+        if: ${{ !cancelled() && steps.apk.outcome == 'success' }}
         run: node scripts/release.mjs --verify-apk android/app/build/outputs/apk/debug/output-metadata.json
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.apk.outcome == 'success' }}
         with:
           name: app-debug
           if-no-files-found: error
