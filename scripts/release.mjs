@@ -234,10 +234,10 @@ function prepare(kind) {
   const current = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
   const version = bumpVersion(current, kind);
   versionCode(version); // throws if minor or patch reached 100
-  run("npm", ["version", version, "--no-git-tag-version"]); // package.json and package-lock.json
-
+  // Everything that can fail runs before the first file is written, so a failure leaves the tree clean.
   const date = new Date().toISOString().slice(0, 10);
   text = prepareChangelog(foldDependabot(text, dependabot), version, date);
+  run("npm", ["version", version, "--no-git-tag-version"]); // package.json and package-lock.json
   writeFileSync(changelogPath, text);
 
   console.log(

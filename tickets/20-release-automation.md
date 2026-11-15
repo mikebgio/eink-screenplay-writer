@@ -106,3 +106,9 @@ Play Store or F-Droid publishing, an AAB, automatic version choice from commit m
 - (device) v0.1.1 installs **over** v0.1.0 without uninstalling, and recent files are still listed.
 
 **Open question for the owner (first release):** the ticket's criterion says "the first release PR (v0.1.0)", but `package.json` is already 0.1.0 and `release:prepare` always bumps. Two ways: (a) run `npm run release:prepare -- patch` and make the first release v0.1.1 (simplest; nothing else changes); or (b) for v0.1.0, hand-edit one PR that renames `[Unreleased]` to `## [0.1.0] - <date>` and fixes the link references, which breaks the "never by hand" rule once; merging it releases v0.1.0. I recommend (a). The (device) checks then read v0.1.1 for the first release and v0.1.2 for the second.
+
+**After review (PR #29):**
+
+- The tag check treats only `HTTP 404` from `gh api …/git/ref/tags/vX.Y.Z` as "no tag". Any other failure (rate limit, network, 5xx) fails the `version` step instead of building a release that `gh release create` would then reject.
+- `release:prepare` computes the new CHANGELOG text before `npm version` runs and writes it right after, so a failure in the CHANGELOG rewrite leaves the tree untouched.
+- The release job uses `gradle/actions/setup-gradle` with `cache-read-only: true` instead of `setup-java`'s `cache: gradle`: it reads the Gradle cache that CI runs on `main` write and never writes one itself (see ticket 17).
