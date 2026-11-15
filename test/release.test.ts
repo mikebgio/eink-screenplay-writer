@@ -190,10 +190,18 @@ describe('APK version check', () => {
 });
 
 describe('release PR exemption', () => {
-  it('passes --check-pr when the PR changes the version', () => {
+  it('passes --check-pr when the PR changes the version and dates its section', () => {
     const released = prepareChangelog(first, '0.1.0', '2026-11-20');
     expect(checkPr(released, 50, null).ok).toBe(false);
-    expect(checkPr(released, 50, null, { versionChanged: true }).ok).toBe(true);
+    expect(checkPr(released, 50, null, { newVersion: '0.1.0' }).ok).toBe(true);
+  });
+
+  it('still wants an entry when a PR bumps the version without a dated section', () => {
+    const result = checkPr(first, 50, null, { newVersion: '0.2.0' });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('no dated [0.2.0] section');
+    const released = prepareChangelog(first, '0.1.0', '2026-11-20');
+    expect(checkPr(released, 50, null, { newVersion: '0.2.0' }).ok).toBe(false);
   });
 });
 

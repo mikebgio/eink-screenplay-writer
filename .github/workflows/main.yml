@@ -4,8 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled/unlabeled re-run CI so adding the no-changelog label clears the CHANGELOG check.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  # The PR's CHANGELOG entry is checked by changelog.yml, which also re-runs on label changes.
 
 permissions:
   contents: read
@@ -88,19 +87,6 @@ jobs:
           if-no-files-found: error
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      # Not part of `npm run check`: it needs the PR number. Runs even if a check above failed.
-      # The script reads the no-changelog label and the author from the event payload and passes
-      # for either exemption.
-      - id: changelog_pr
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          # The base commit lets the script spot a release PR (one that changes the version), which needs no entry.
-          git fetch --no-tags --depth=1 origin "$BASE_SHA" || echo "Could not fetch the base commit; no release-PR exemption."
-          node scripts/changelog.mjs --check-pr "$PR_NUMBER"
-
       - name: Summary
         if: always()
         env:
@@ -109,7 +95,6 @@ jobs:
           OUTCOME_TESTS: ${{ steps.tests.outcome }}
           OUTCOME_PLAN: ${{ steps.plan.outcome }}
           OUTCOME_CHANGELOG: ${{ steps.changelog.outcome }}
-          OUTCOME_CHANGELOG_PR: ${{ steps.changelog_pr.outcome }}
           OUTCOME_APK: ${{ steps.apk.outcome }}
           OUTCOME_APK_VERSION: ${{ steps.apk_version.outcome }}
         run: node scripts/ci-summary.mjs >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,47 @@
+name: CHANGELOG
+
+# Checks that a PR adds its CHANGELOG line (rules in CLAUDE.md). Kept apart from CI so that adding or
+# removing the no-changelog label re-runs only this check, not the whole build. No install: the script
+# has no dependencies.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    name: changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      # The script reads the no-changelog label and the author from the event payload. The base commit
+      # lets it spot a release PR (a version change with a dated CHANGELOG section), which needs no entry.
+      - name: Check this PR's CHANGELOG line
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" || echo "Could not fetch the base commit; no release-PR exemption."
+          status=0
+          node scripts/changelog.mjs --check-pr "$PR_NUMBER" > "$RUNNER_TEMP/changelog.txt" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/changelog.txt"
+          {
+            if [ "$status" -eq 0 ]; then echo "## CHANGELOG ✅"; else echo "## CHANGELOG ❌"; fi
+            echo
+            echo '```'
+            sed 's/```/'"'''"'/g' "$RUNNER_TEMP/changelog.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

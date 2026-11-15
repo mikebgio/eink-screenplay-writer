@@ -82,6 +82,11 @@ describe('checkFormat', () => {
     expect(errors).toEqual([`line 10: entry must end with its PR link, like ([#N](${REPO_URL}/pull/N))`]);
   });
 
+  it('fails on a dangling separator in the link list', () => {
+    const errors = checkFormat(good.replace(`- Writing tools ${link(20)}`, `- Writing tools ([#20](${REPO_URL}/pull/20), )`));
+    expect(errors).toEqual([`line 10: entry must end with its PR link, like ([#N](${REPO_URL}/pull/N))`]);
+  });
+
   it('fails when the link text and URL numbers differ', () => {
     const errors = checkFormat(good.replace(`[#20](${REPO_URL}/pull/20)`, `[#20](${REPO_URL}/pull/19)`));
     expect(errors).toHaveLength(1);

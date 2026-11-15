@@ -93,7 +93,7 @@ The required status check (18), the changelog check (19), release builds (20), a
 
 **Durations, before:** run 43647719368 took 2 min 27 s wall-clock (job `web` 1 min 15 s, then job `android` 1 min 7 s, each with its own checkout, setup-node and `npm ci`; the web app was built in both). After: fill in from this PR's first run.
 
-**Adding a check later (tickets 19, 20 and beyond):** add it to `check` in `package.json`; add a step with an `id` to `main.yml` in the same place in the order; pass its outcome to the `Summary` step as `OUTCOME_<ID>`; add a row to `CHECKS` in `scripts/ci-summary.mjs` (`optional: true` hides the row when the step didn't run, for PR-only checks). The comment above the check steps in `main.yml` says this.
+**Adding a check later (tickets 19, 20 and beyond):** add it to `check` in `package.json`; add a step with an `id` to `main.yml` in the same place in the order; pass its outcome to the `Summary` step as `OUTCOME_<ID>`; add a row to `CHECKS` in `scripts/ci-summary.mjs`. The comment above the check steps in `main.yml` says this.
 
 **Not run locally:** the workflow itself (no `actionlint` on the dev Mac) and the APK build (no JDK). The summary script was run locally against real Vitest and ESLint reports.
 

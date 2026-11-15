@@ -150,12 +150,5 @@ describe('ci-summary', () => {
   it('lists every check in the Result table even with no outcomes', () => {
     const md = renderResult({});
     expect(md.match(/\| not run \|/g)).toHaveLength(7);
-    expect(md).not.toContain('CHANGELOG entry for this PR');
-  });
-
-  it('shows the PR-only CHANGELOG check only when it ran', () => {
-    expect(renderResult({ outcomes: { changelogPr: 'skipped' } })).not.toContain('CHANGELOG entry for this PR');
-    expect(renderResult({ outcomes: { changelogPr: 'failure' } })).toContain('| CHANGELOG entry for this PR | ❌ |');
-    expect(renderResult({ outcomes: { changelogPr: 'success' } })).toContain('| CHANGELOG entry for this PR | ✅ |');
   });
 });

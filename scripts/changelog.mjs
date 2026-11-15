@@ -5,9 +5,10 @@
 //   node scripts/changelog.mjs --check-pr <number> [Unreleased] has a line linking PR <number> (CI, pull_request only)
 //   node scripts/changelog.mjs --notes <X.Y.Z>      print that section's body: the release notes (release workflow)
 //
-// --check-pr reads the event payload from GITHUB_EVENT_PATH when set, and passes without looking at the
-// file when the PR has the `no-changelog` label, was opened by dependabot[bot], or changes `version` in
-// package.json (a release PR, compared with the payload's base commit).
+// --check-pr reads the event payload from GITHUB_EVENT_PATH when set, and passes without an entry when the
+// PR has the `no-changelog` label, was opened by dependabot[bot], or is a release PR: it changes `version`
+// in package.json (compared with the payload's base commit) and CHANGELOG.md has a dated section for the
+// new version, which only `npm run release:prepare` writes.
 //
 // Exit codes: 0 pass, 1 check failed, 2 usage error.
 // No dependencies.
@@ -27,7 +28,7 @@ export const DEPENDABOT = "dependabot[bot]";
 const RELEASE_HEADING = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/;
 const LINK_REF = /^\[[^\]]+\]:\s+\S+/;
 // The trailing "([#N](url))" or "([#N](url), [#M](url))" of an entry line.
-const TRAILING_LINKS = /\(((?:\[#\d+\]\([^)\s]+\)(?:, )?)+)\)$/;
+const TRAILING_LINKS = /\((\[#\d+\]\([^)\s]+\)(?:, \[#\d+\]\([^)\s]+\))*)\)$/;
 const PR_LINK = /\[#(\d+)\]\(([^)\s]+)\)/g;
 
 /**
@@ -157,14 +158,16 @@ export function checkFormat(text, opts = {}) {
  * @param {string} text
  * @param {number} number
  * @param {PrEvent | null} [event]
- * @param {{ repoUrl?: string, versionChanged?: boolean }} [opts] versionChanged: the PR changes `version` in package.json
+ * @param {{ repoUrl?: string, newVersion?: string | null }} [opts] newVersion: the PR changes `version` in package.json to this
  * @returns {CheckResult}
  */
 export function checkPr(text, number, event, opts = {}) {
   const repoUrl = opts.repoUrl ?? REPO_URL;
   const pr = event?.pull_request;
-  if (opts.versionChanged) {
-    return { ok: true, message: `PR #${number} changes the version in package.json: it is a release PR, no CHANGELOG entry needed.` };
+  const parsed = parseChangelog(text);
+  // A version bump alone isn't a release PR: CHANGELOG.md must also have the new version's dated section.
+  if (opts.newVersion && parsed.releases.some((r) => r.name === opts.newVersion && r.date)) {
+    return { ok: true, message: `PR #${number} releases v${opts.newVersion}: no CHANGELOG entry needed.` };
   }
   if (pr?.labels?.some((l) => l.name === NO_CHANGELOG_LABEL)) {
     return { ok: true, message: `PR #${number} has the \`${NO_CHANGELOG_LABEL}\` label: no CHANGELOG entry needed.` };
@@ -172,7 +175,7 @@ export function checkPr(text, number, event, opts = {}) {
   if (pr?.user?.login === DEPENDABOT) {
     return { ok: true, message: `PR #${number} is from Dependabot: no CHANGELOG entry needed (the release script adds one).` };
   }
-  const unreleased = parseChangelog(text).releases.find((r) => r.heading === "## [Unreleased]");
+  const unreleased = parsed.releases.find((r) => r.heading === "## [Unreleased]");
   const found = unreleased?.groups.some((g) => g.entries.some((e) => e.prs.includes(number)));
   if (found) return { ok: true, message: `CHANGELOG.md has an entry for PR #${number}.` };
   const line = `- ${pr?.title?.replace(/^\d+(, \d+)*: /, "") || "What is different now, for the person using the app"} ([#${number}](${repoUrl}/pull/${number}))`;
@@ -186,25 +189,30 @@ export function checkPr(text, number, event, opts = {}) {
       `    ${line}`,
       "",
       "The rules are in CLAUDE.md (CHANGELOG section).",
+      ...(opts.newVersion
+        ? [`This PR changes the version to ${opts.newVersion}, but CHANGELOG.md has no dated [${opts.newVersion}] section: only \`npm run release:prepare\` should change the version.`]
+        : []),
       `If this PR needs no entry (it only changes tickets, plans or comments, or only ticks owner checks), add the \`${NO_CHANGELOG_LABEL}\` label instead.`,
     ].join("\n"),
   };
 }
 
 /**
- * Does the PR change `version` in package.json? Compares the checked-out file with the base commit from the
- * event payload (the workflow fetches that commit first). False when the base can't be read.
+ * The PR's new `version` from package.json, or null when it doesn't change it. Compares the checked-out file
+ * with the base commit from the event payload (the workflow fetches that commit first). Null when the base
+ * can't be read.
  * @param {PrEvent & { pull_request?: { base?: { sha?: string } } } | null} event
+ * @returns {string | null}
  */
-function versionChanged(event) {
+function newVersion(event) {
   const sha = event?.pull_request?.base?.sha;
-  if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) return false;
+  if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) return null;
   try {
     const base = JSON.parse(execFileSync("git", ["show", `${sha}:package.json`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
     const head = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-    return base.version !== head.version;
+    return base.version !== head.version ? String(head.version) : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -240,7 +248,7 @@ function main(argv, env) {
       return 2;
     }
     const event = env.GITHUB_EVENT_PATH ? JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")) : null;
-    const result = checkPr(readFileSync(file, "utf8"), number, event, { versionChanged: versionChanged(event) });
+    const result = checkPr(readFileSync(file, "utf8"), number, event, { newVersion: newVersion(event) });
     (result.ok ? console.log : console.error)(result.message);
     return result.ok ? 0 : 1;
   }

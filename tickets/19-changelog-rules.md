@@ -88,3 +88,9 @@ An entry line may link several PRs (`([#21](…), [#30](…))`): the Dependabot 
   - `gh pr edit 22 --add-label no-changelog`
   - `gh pr edit 26 --add-label no-changelog`
 - (manual) Open a PR with no entry: CI fails with the message above; adding `no-changelog` re-runs CI and turns it green.
+
+**After review (PR #29):**
+
+- The PR check moved out of the `ci` job into its own workflow, `.github/workflows/changelog.yml` (job `changelog`): checkout, setup-node, one step, no install. Adding or removing the `no-changelog` label now re-runs only that job, not the whole build, and no longer cancels a running CI build. Its result is the job's own run summary, not a row in the CI summary; `ci` no longer triggers on `labeled`/`unlabeled`. **For ticket 18:** make `changelog` a required status check next to `ci`.
+- The release-PR exemption is narrower: a PR that changes `version` passes without an entry only when `CHANGELOG.md` also has a dated `## [X.Y.Z]` section for the new version (only `release:prepare` writes one). A feature PR that bumps the version still needs its line, and the failure message says to use `release:prepare`.
+- The trailing link list no longer accepts a dangling `, ` before the closing parenthesis.
