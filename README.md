@@ -37,10 +37,11 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 ```bash
 npm install
 npm run dev        # editor + print view in a desktop browser
-npm test           # Vitest (engine tests)
-npm run typecheck
-npm run lint
+npm run check      # everything CI checks: typecheck, lint, tests, plan up to date, CHANGELOG format
+npm test           # Vitest only
 ```
+
+Run `npm run check` before pushing. CI runs the same checks (as separate steps, so each shows its own result), builds the APK and writes a summary on the run page.
 
 ## Build the APK
 
@@ -49,6 +50,13 @@ npm run apk        # build web app, cap sync, then gradle assembleDebug
 ```
 
 Output: `android/app/build/outputs/apk/debug/app-debug.apk` (debug-signed, fine for sideloading).
+
+## Releasing
+
+1. On an up-to-date `main` with a clean tree: `npm run release:prepare -- patch` (or `minor`, `major`). It bumps the version in `package.json`, turns `[Unreleased]` in `CHANGELOG.md` into a dated section, and stops if a merged PR has no CHANGELOG line (add the line, or label the PR `no-changelog`). Commit as `Release vX.Y.Z` on a branch and open a PR.
+2. Merge the PR. The release workflow tags the commit `vX.Y.Z` and publishes a GitHub Release with the signed APK, its SHA-256 file and a zip of the web build, with that version's CHANGELOG section as the notes.
+
+Never create tags or edit the version by hand. Signing setup (once): [docs/release-signing.md](docs/release-signing.md). If a release run fails, fix the cause on `main` and re-run it from the Actions tab (*Release* → *Run workflow*); it builds again and only tags when everything has passed.
 
 ## Sideload
 

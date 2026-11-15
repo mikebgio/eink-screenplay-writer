@@ -235,6 +235,10 @@ button {
 .error {
   font-weight: 700;
 }
+.app-version {
+  margin-top: 32px;
+  font-size: 0.85em;
+}
 
 /* Variables: undefined keys get a dashed box in the editor and print view; no colour (e-ink). */
 .var-undefined,
