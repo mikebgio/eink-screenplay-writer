@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-14
+
 ### Added
 
 - Minimal working app on the tablet ([#1](https://github.com/mikebgio/eink-screenplay-writer/pull/1))
@@ -36,4 +38,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fix the gradlew path and first-download note in the JDK pin docs, and document the failure mode ([#3](https://github.com/mikebgio/eink-screenplay-writer/pull/3))
 - Fix flaky storage tests by making `MemoryStorage` hashing synchronous ([#10](https://github.com/mikebgio/eink-screenplay-writer/pull/10))
 
-[Unreleased]: https://github.com/mikebgio/eink-screenplay-writer/commits/main
+[Unreleased]: https://github.com/mikebgio/eink-screenplay-writer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mikebgio/eink-screenplay-writer/releases/tag/v0.1.0
