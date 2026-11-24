@@ -1,7 +1,7 @@
 ---
 id: 18
 title: Merge gates on main
-status: todo
+status: needs-device
 blocked_by: [17]
 model: haiku
 plan: PLAN-2.md
@@ -33,8 +33,8 @@ Ruleset `main` (id 27175451) on `mikebgio/eink-screenplay-writer` is active with
 
 ## Acceptance criteria
 
-- [ ] `.github/rulesets/main.json` describes the full wanted ruleset; `scripts/apply-ruleset.sh` applies it and prints the result.
-- [ ] `README.md` has the *Contributing* section.
+- [x] `.github/rulesets/main.json` describes the full wanted ruleset; `scripts/apply-ruleset.sh` applies it and prints the result.
+- [x] `README.md` has the *Contributing* section.
 - [ ] (manual) The owner runs `scripts/apply-ruleset.sh`; the read-back shows the `required_status_checks` rule with context `ci` and squash as the only merge method.
 - [ ] (manual) A test PR with a failing check shows the merge button blocked; after the fix it can be merged. (The failing-test PR from ticket 17 can be reused.)
 
@@ -44,4 +44,25 @@ Required reviews, CODEOWNERS, signed commits, tag protection (ticket 20 decides 
 
 ## Handoff notes
 
-_(Fill in: the exact check context name as GitHub reports it, and anything the API rejected.)_
+**Built.** `.github/rulesets/main.json` (the full wanted `main` ruleset, in the PUT body shape: no `id`, `source` or `_links`). `scripts/apply-ruleset.sh` (one `gh api --method PUT`, then a read-back of the rules). `README.md` *Contributing*. `test/ruleset.test.ts` checks the JSON, that the `ci` job exists in `main.yml`, and the script's two `gh api` calls.
+
+**Check context:** `ci`. The job id and its `name:` are both `ci` in `.github/workflows/main.yml`. There is a comment between `jobs:` and `ci:`, so the test matches the two lines directly. Required context: `ci`, `strict_required_status_checks_policy: false`, `allowed_merge_methods: ["squash"]`, no bypass actors.
+
+**Not read from GitHub.** `gh` fails TLS in the sandbox (`x509: OSStatus -26276`), so the live ruleset (id 27175451) was not fetched. The JSON is built from the ticket's description of it: ruleset `main`, branch condition `refs/heads/main`, deletion, non-fast-forward and pull-request rules kept with 0 approvals. If the read-back shows different conditions or rule parameters, edit `main.json` and re-run the script. Nothing was sent to GitHub, and no API rejection has been seen.
+
+**Owner's apply command** (run from the repo root; changes branch protection, so it is the owner's step):
+
+```bash
+scripts/apply-ruleset.sh
+```
+
+Equivalent raw calls, if the script is not wanted:
+
+```bash
+gh api --method PUT repos/mikebgio/eink-screenplay-writer/rulesets/27175451 --input .github/rulesets/main.json
+gh api repos/mikebgio/eink-screenplay-writer/rulesets/27175451 --jq '.rules[] | "\(.type) \(.parameters // {} | tojson)"'
+```
+
+**Owner checks:**
+- (manual) Run `scripts/apply-ruleset.sh`. The read-back shows a `required_status_checks` rule with context `ci`, and `allowed_merge_methods` is `["squash"]` only.
+- (manual) A test PR with a failing check shows the merge blocked; after the fix it can be merged. The failing-test PR from ticket 17 can be reused.

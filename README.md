@@ -43,6 +43,16 @@ npm test           # Vitest only
 
 Run `npm run check` before pushing. CI runs the same checks (as separate steps, so each shows its own result), builds the APK and writes a summary on the run page.
 
+## Contributing
+
+`main` takes changes only through pull requests, and only when the `ci` check has passed. Merges are squash merges only. Dependabot PRs go through the same gate.
+
+1. Run `npm run check` before pushing.
+2. Open a PR against `main` and add its CHANGELOG line (see `CLAUDE.md`).
+3. When `ci` is green, squash-merge.
+
+The gate is kept in the repo as `.github/rulesets/main.json`. The owner applies it with `scripts/apply-ruleset.sh`.
+
 ## Build the APK
 
 ```bash
