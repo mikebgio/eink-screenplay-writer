@@ -42,7 +42,10 @@ describe('.github/rulesets/main.json', () => {
   it('requires the ci check and does not require the branch to be up to date', () => {
     const checks = rule('required_status_checks')?.parameters;
     // 15368 is GitHub Actions: only checks reported by Actions satisfy the gate.
-    expect(checks?.required_status_checks).toEqual([{ context: 'ci', integration_id: 15368 }]);
+    expect(checks?.required_status_checks).toEqual([
+      { context: 'ci', integration_id: 15368 },
+      { context: 'changelog', integration_id: 15368 },
+    ]);
     expect(checks?.strict_required_status_checks_policy).toBe(false);
   });
 

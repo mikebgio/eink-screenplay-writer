@@ -35,6 +35,10 @@
           {
             "context": "ci",
             "integration_id": 15368
+          },
+          {
+            "context": "changelog",
+            "integration_id": 15368
           }
         ]
       }

@@ -35,7 +35,7 @@ Ruleset `main` (id 27175451) on `mikebgio/eink-screenplay-writer` is active with
 
 - [x] `.github/rulesets/main.json` describes the full wanted ruleset; `scripts/apply-ruleset.sh` applies it and prints the result.
 - [x] `README.md` has the *Contributing* section.
-- [ ] (manual) The owner runs `scripts/apply-ruleset.sh`; the read-back shows the `required_status_checks` rule with context `ci` and squash as the only merge method.
+- [ ] (manual) The owner runs `scripts/apply-ruleset.sh`; the read-back shows the `required_status_checks` rule with contexts `ci` and `changelog`, both with `integration_id` 15368, and squash as the only merge method.
 - [ ] (manual) A test PR with a failing check shows the merge button blocked; after the fix it can be merged. (The failing-test PR from ticket 17 can be reused.)
 
 ## Out of scope
@@ -64,5 +64,7 @@ gh api repos/mikebgio/eink-screenplay-writer/rulesets/27175451 --jq '.rules[] | 
 ```
 
 **Owner checks:**
-- (manual) Run `scripts/apply-ruleset.sh`. The read-back shows a `required_status_checks` rule with context `ci`, and `allowed_merge_methods` is `["squash"]` only.
+- (manual) Run `scripts/apply-ruleset.sh`. The read-back shows a `required_status_checks` rule with contexts `ci` and `changelog`, both with `integration_id` 15368, and `allowed_merge_methods` is `["squash"]` only.
 - (manual) A test PR with a failing check shows the merge blocked; after the fix it can be merged. The failing-test PR from ticket 17 can be reused.
+
+**Decision (owner, after the PR #32 review):** `changelog` is a required status check next to `ci`, both with `integration_id` 15368 (GitHub Actions). This amends D7, which named only `ci`. Changed in `.github/rulesets/main.json`, `test/ruleset.test.ts` and the README. The ruleset is not re-applied yet: the owner runs `scripts/apply-ruleset.sh` again.
