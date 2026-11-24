@@ -71,6 +71,12 @@ Manual fallback: the Boox system has its own per-app refresh settings (app optim
 
 Typing latency: press `Ctrl+Shift+D` (or long-press the document name) for the debug panel; see `docs/latency-test.md` for the filmed test and `docs/decisions/0001-editor-surface.md` for the GO/NO-GO record.
 
+## Sync conflicts
+
+The app never writes over a script that changed since it last read or wrote it. If you have unsaved edits it shows both versions (**Keep mine**, **Take theirs**, **Keep both**) and saves a `pre-conflict` snapshot of each before applying your choice; with no unsaved edits it just loads the new version.
+
+**Limitation:** the app only sees what the Drive app has already synced to the device. If Drive hasn't synced yet, an edit made on another device can't be detected, and Drive may later keep either version or both. The snapshots taken before resolving are the safety net, so check the Snapshots panel if something looks missing. Sync on both devices before switching between them.
+
 ## Layout
 
 - `src/engine/` Script Engine: pure TypeScript, no DOM/Capacitor/I/O (enforced by `tsconfig.engine.json` and an ESLint rule)

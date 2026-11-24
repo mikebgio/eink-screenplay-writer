@@ -8,6 +8,7 @@ import { newScriptTemplate } from '../src/storage/template';
 import { hashText, type FileRef } from '../src/storage/port';
 
 describe('DocumentSession', () => {
+  const snapshots = { takeSafetyCopy: () => Promise.resolve() };
   let storage: MemoryStorage;
   let journal: MemoryJournal;
   let session: DocumentSession;
@@ -18,7 +19,7 @@ describe('DocumentSession', () => {
     storage = new MemoryStorage();
     journal = new MemoryJournal();
     ref = storage.seed('mem://docs/a.fountain', 'hello');
-    session = new DocumentSession({ storage, journal });
+    session = new DocumentSession({ storage, journal, snapshots });
     await session.open(ref);
   });
   afterEach(() => vi.useRealTimers());
@@ -66,17 +67,17 @@ describe('DocumentSession', () => {
   });
 
   it('keeps the last known version after a read and a save', async () => {
-    const v0 = session.version;
+    const v0 = session.baseVersion;
     session.edit('changed');
     await session.save();
-    expect(session.version).not.toBe(v0);
-    expect(session.version).toBe((await storage.read(ref)).version);
+    expect(session.baseVersion).not.toBe(v0);
+    expect(session.baseVersion).toBe((await storage.read(ref)).version);
   });
 
   it('offers recovery after a simulated crash, and recovering restores the text', async () => {
     session.edit('unsaved work');
     await vi.advanceTimersByTimeAsync(1000); // journal written, then the app is killed
-    const fresh = new DocumentSession({ storage, journal });
+    const fresh = new DocumentSession({ storage, journal, snapshots });
     const rec = await fresh.open(ref);
     expect(rec?.text).toBe('unsaved work');
     fresh.recover(rec!);
@@ -89,7 +90,7 @@ describe('DocumentSession', () => {
   it('discarding removes the journal and keeps the file text', async () => {
     session.edit('unsaved work');
     await vi.advanceTimersByTimeAsync(1000);
-    const fresh = new DocumentSession({ storage, journal });
+    const fresh = new DocumentSession({ storage, journal, snapshots });
     const rec = await fresh.open(ref);
     expect(rec).not.toBeNull();
     await fresh.discard();
@@ -99,7 +100,7 @@ describe('DocumentSession', () => {
 
   it('does not offer recovery when the journal matches the file', async () => {
     await journal.set(ref.uri, { text: 'hello', savedAt: 1 });
-    const fresh = new DocumentSession({ storage, journal });
+    const fresh = new DocumentSession({ storage, journal, snapshots });
     expect(await fresh.open(ref)).toBeNull();
     expect(journal.entries.has(ref.uri)).toBe(false);
   });

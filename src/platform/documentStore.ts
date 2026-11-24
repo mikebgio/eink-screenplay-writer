@@ -6,6 +6,8 @@ export interface DocumentStorePlugin {
   pickCreate(o: { suggestedName: string; mimeType?: string }): Promise<{ uri?: string; name?: string }>;
   pickFolder(): Promise<{ uri?: string }>;
   listFolder(o: { folderUri: string }): Promise<{ files: { uri: string; name: string }[] }>;
+  /** Creates a new empty file in a picked folder; the provider may adjust a name that is taken. */
+  createInFolder(o: { folderUri: string; name: string }): Promise<{ uri: string; name: string }>;
   read(o: { uri: string }): Promise<{ text: string }>;
   write(o: { uri: string; text: string }): Promise<void>;
   /** Binary write; `base64` is the file's bytes. */

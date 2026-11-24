@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Sync conflict detection and resolution ([#33](https://github.com/mikebgio/eink-screenplay-writer/pull/33))
+
 ## [0.1.0] - 2026-11-14
 
 ### Added

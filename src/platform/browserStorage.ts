@@ -15,6 +15,7 @@ interface FsFileHandle extends FsHandle {
 }
 interface FsDirHandle extends FsHandle {
   values(): AsyncIterable<FsHandle>;
+  getFileHandle(name: string, o?: { create?: boolean }): Promise<FsFileHandle>;
 }
 interface FsWindow {
   showOpenFilePicker?(o?: object): Promise<FsFileHandle[]>;
@@ -108,6 +109,11 @@ export class FsAccessStorage implements StoragePort {
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
+  async createInFolder(folderUri: string, name: string) {
+    const dir = this.dirs.get(folderUri);
+    if (!dir) throw new Error('Folder access expired; choose the workspace folder again.');
+    return this.register(await dir.getFileHandle(name, { create: true }), folderUri);
+  }
   async read(ref: FileRef) {
     const h = this.handles.get(ref.uri);
     if (!h) throw new Error('File handle expired; reopen the file.');
@@ -172,6 +178,10 @@ export class LocalStorageFolder implements StoragePort {
   }
   listFolder() {
     return Promise.resolve(this.names().map((n) => this.ref(n)));
+  }
+  createInFolder(_folderUri: string, name: string) {
+    if (localStorage.getItem(LS_PREFIX + name) === null) localStorage.setItem(LS_PREFIX + name, '');
+    return Promise.resolve(this.ref(name));
   }
   async read(ref: FileRef) {
     const text = localStorage.getItem(LS_PREFIX + ref.name);

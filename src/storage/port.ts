@@ -25,6 +25,8 @@ export interface StoragePort {
   pickCreate(suggestedName: string): Promise<FileRef | null>;
   pickFolder(): Promise<{ uri: string } | null>;
   listFolder(folderUri: string): Promise<FileRef[]>;
+  /** A new empty file in a workspace folder. The caller picks a name that isn't taken (ticket 12). */
+  createInFolder(folderUri: string, name: string): Promise<FileRef>;
   read(ref: FileRef): Promise<{ text: string; version: string }>;
   write(ref: FileRef, text: string): Promise<{ version: string }>;
   /** Writes binary data (an exported PDF) to a file the writer just created with `pickCreate`. */

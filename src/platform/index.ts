@@ -30,6 +30,16 @@ export function onBackground(cb: () => void): () => void {
   return () => document.removeEventListener('visibilitychange', fn);
 }
 
+/** Calls `cb` when the app comes back: Capacitor `resume`, or the window regaining focus. */
+export function onForeground(cb: () => void): () => void {
+  window.addEventListener('focus', cb);
+  const h = isNative() ? App.addListener('resume', cb) : null;
+  return () => {
+    window.removeEventListener('focus', cb);
+    void h?.then((x) => x.remove());
+  };
+}
+
 export { EInk, browserEInk } from './eink';
 export type { EInkPlugin, RefreshMode } from './eink';
 export { RefreshPolicy, IDLE_MS } from './refreshPolicy';

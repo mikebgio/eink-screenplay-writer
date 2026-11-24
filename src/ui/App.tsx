@@ -12,6 +12,7 @@ import {
   setVariable,
   variableUses,
   diffTitleValues,
+  rebaseTitleValues,
   titlePageChanges,
   titleValues,
   type EditResult,
@@ -25,13 +26,22 @@ import {
   LatencyRecorder,
   RefreshPolicy,
   onBackground,
+  onForeground,
   preferencesStore,
   privateSnapshotStore,
 } from '../platform';
 import type { FileRef } from '../storage/port';
 import { RecentFiles } from '../storage/recent';
 import { LAYOUT_KEY, LAYOUT_MODES, nextLayout, parseLayout, type LayoutMode } from './layout';
-import { DocumentSession, type Recovery, type SaveStatus } from '../storage/session';
+import {
+  DocumentSession,
+  type Conflict,
+  type ConflictChoice,
+  type Recovery,
+  type ReplaceReason,
+  type SaveStatus,
+} from '../storage/session';
+import { ConflictScreen } from './ConflictScreen';
 import { newScriptTemplate } from '../storage/template';
 import { Editor, type EditorHandle } from './Editor';
 import { SnapshotService, type SnapshotEntry } from '../storage/snapshots';
@@ -42,7 +52,7 @@ import { LatencyPanel } from './LatencyPanel';
 import { TitlePageForm } from './TitlePageForm';
 import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList';
 import { StartScreen } from './StartScreen';
-import { commands, registerCommand } from './commands';
+import { commands, eventToKey, registerCommand } from './commands';
 import { ShortcutHelp } from './ShortcutHelp';
 import { ExportDialog } from './ExportDialog';
 import { EXPORT_FORMATS } from './exportFormats';
@@ -62,15 +72,35 @@ export function App() {
   const recent = useMemo(() => new RecentFiles(preferencesStore), []);
   const [recents, setRecents] = useState<FileRef[]>([]);
   const [status, setStatus] = useState<SaveStatus>('saved');
-  const session = useMemo(
-    () => new DocumentSession({ storage, journal: new FilesystemJournal(), onStatus: setStatus }),
-    [storage],
-  );
-
   const snapshots = useMemo(
     () => new SnapshotService({ storage, privateStore: privateSnapshotStore }),
     [storage],
   );
+  // Sync conflicts: a newly found one opens the screen; after Cancel only the banner stays.
+  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const hadConflict = useRef(false);
+  const conflictOpenRef = useRef(false);
+  conflictOpenRef.current = conflictOpen;
+  const onReplaceRef = useRef<(text: string, reason: ReplaceReason) => void>(() => {});
+  const session = useMemo(
+    () =>
+      new DocumentSession({
+        storage,
+        journal: new FilesystemJournal(),
+        snapshots,
+        onStatus: setStatus,
+        onConflict: (c) => {
+          if (!c) setConflictOpen(false);
+          else if (!hadConflict.current) setConflictOpen(true);
+          hadConflict.current = c !== null;
+          setConflict(c);
+        },
+        onReplace: (text, reason) => onReplaceRef.current(text, reason),
+      }),
+    [storage, snapshots],
+  );
+
   const [snapOpen, setSnapOpen] = useState(false);
   const [focusSeq, setFocusSeq] = useState(0);
   const [snapEntries, setSnapEntries] = useState<SnapshotEntry[]>([]);
@@ -154,7 +184,9 @@ export function App() {
   }, []);
 
   useEffect(() => void recent.list().then(setRecents), [recent]);
-  useEffect(() => onBackground(() => void session.onBackground()), [session]);
+  useEffect(() => onBackground(() => void session.onBackground().catch(() => {})), [session]);
+  // A failed check (file briefly unavailable) is harmless: every save checks again before writing.
+  useEffect(() => onForeground(() => void session.onForeground().catch(() => {})), [session]);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => () => snapshots.detach(), [snapshots]);
   useEffect(() => {
@@ -207,8 +239,10 @@ export function App() {
     export(): void;
   }>(undefined as never);
   actions.current = {
-    save: () =>
-      void session.save().catch((e) => setError(e instanceof Error ? e.message : String(e))),
+    save: () => {
+      if (session.conflict) return setConflictOpen(true);
+      void session.save().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    },
     drawer: () => setDrawerOpen((o) => !o),
     snapshot: () => {
       setSnapOpen(true);
@@ -296,7 +330,14 @@ export function App() {
         run: () => actions.current.find(true),
       }),
     ];
-    const onKey = (e: KeyboardEvent) => void commands.handleEvent(e);
+    const onKey = (e: KeyboardEvent) => {
+      // The conflict screen is modal: no command acts behind it (nor does the browser's own).
+      if (conflictOpenRef.current) {
+        if (commands.forKey(eventToKey(e))) e.preventDefault();
+        return;
+      }
+      commands.handleEvent(e);
+    };
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('keydown', onKey, true);
@@ -331,8 +372,45 @@ export function App() {
     [session, recent, show, snapshots, refreshSnaps],
   );
 
+  // The session replaced the text itself (reload, or a resolved conflict): the editor follows,
+  // and that change is not reported back as the writer's typing.
+  const replacing = useRef(false);
+  onReplaceRef.current = (t, reason) => {
+    clearTimeout(timer.current);
+    setDebounced(t);
+    replacing.current = true;
+    try {
+      editor.current?.replace(t, reason !== 'reload');
+    } finally {
+      replacing.current = false;
+    }
+    if (reason === 'reload') {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setToast(`Updated from another device (${time})`);
+    }
+  };
+
+  const resolveConflict = async (choice: ConflictChoice, seenVersion: string) => {
+    const original = session.ref;
+    const result = await session.resolveConflict(choice, seenVersion);
+    refreshSnaps();
+    const copy = result.kind === 'cancelled' ? undefined : result.copy;
+    if (copy && original) {
+      // Both show in recent files, the open script first.
+      await recent.add(copy);
+      setRecents(await recent.add(original));
+      if (workspace && copy.folderUri === workspace.uri) {
+        setWorkspace({ uri: workspace.uri, files: await storage.listFolder(workspace.uri) });
+      }
+      if (result.kind === 'resolved') setToast(`Your version was saved as ${copy.name}.`);
+    }
+    if (result.kind === 'resolved') editor.current?.view().focus();
+    return result;
+  };
+
   const onChange = useCallback(
     (t: string) => {
+      if (replacing.current) return;
       session.edit(t);
       keyTimer.committed();
       // Typing replaces the journal, so the recovery offer no longer applies.
@@ -429,12 +507,12 @@ export function App() {
   // Page turns come only from explicit navigation (see turnPage), not from repagination while typing.
   const titleOpen = titleForm !== null;
   const exportOpen = exportState !== null;
-  const prevOverlays = useRef([drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen]);
+  const prevOverlays = useRef([drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen, false]);
   useEffect(() => {
-    const now = [drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen];
+    const now = [drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen, conflictOpen];
     if (now.some((v, i) => v !== prevOverlays.current[i])) policy.overlayChanged();
     prevOverlays.current = now;
-  }, [drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen, policy]);
+  }, [drawerOpen, snapOpen, titleOpen, debugOpen, exportOpen, conflictOpen, policy]);
   const turnPage = useCallback(
     (i: number) => {
       setPageIndex(i);
@@ -497,16 +575,28 @@ export function App() {
 
   return (
     <div class="app-shell">
-      <header class="doc-bar">
+      <header class="doc-bar" inert={conflictOpen}>
         <button
           type="button"
           onClick={() => {
-            void session.save().then(() => {
-              snapshots.detach();
-              setToast(null);
-              setSnapOpen(false);
-              setCurrent(null);
-            });
+            const wasPending = session.conflict !== null;
+            void session
+              .save()
+              .then(async () => {
+                // A conflict found just now is shown first. A cancelled one can be left: the
+                // writer's text is snapshotted and journalled until the script is opened again.
+                if (!wasPending && session.conflict) return;
+                await session.close();
+                snapshots.detach();
+                setToast(null);
+                setSnapOpen(false);
+                setCurrent(null);
+              })
+              .catch((e) =>
+                setToast(
+                  `Still open, to keep your changes safe: ${e instanceof Error ? e.message : String(e)}`,
+                ),
+              );
           }}
         >
           Files
@@ -568,8 +658,29 @@ export function App() {
           {toast}
         </div>
       )}
+      {conflict && !conflictOpen && (
+        <div class="recovery" role="alert">
+          Unresolved conflict –
+          <button type="button" onClick={() => setConflictOpen(true)}>
+            Resolve
+          </button>
+        </div>
+      )}
+      {conflict && conflictOpen && (
+        <ConflictScreen
+          mine={session.text}
+          theirs={conflict.theirs}
+          theirsVersion={conflict.theirsVersion}
+          onChoose={resolveConflict}
+          onCancel={() => {
+            setConflictOpen(false);
+            // After the editor is no longer inert.
+            setTimeout(() => editor.current?.view().focus(), 0);
+          }}
+        />
+      )}
       {recovery && (
-        <div class="recovery">
+        <div class="recovery" inert={conflictOpen}>
           Recover unsaved changes from {new Date(recovery.savedAt).toLocaleString()}?
           <button
             type="button"
@@ -592,7 +703,7 @@ export function App() {
           </button>
         </div>
       )}
-      <div class="app">
+      <div class="app" inert={conflictOpen}>
         <section class={`pane pane-editor${layout === 'print' ? ' pane-hidden' : ''}`}>
           <Editor
             text={text}
@@ -665,7 +776,9 @@ export function App() {
               const h = editor.current;
               if (h) {
                 const t = h.getText();
-                h.apply(titlePageChanges(t, diffTitleValues(t, values)), 'input.title');
+                // The script may have been reloaded since the form opened.
+                const merged = rebaseTitleValues(t, titleForm, values);
+                h.apply(titlePageChanges(t, diffTitleValues(t, merged)), 'input.title');
               }
               setTitleForm(null);
             }}
