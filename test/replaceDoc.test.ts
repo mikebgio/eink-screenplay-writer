@@ -32,6 +32,50 @@ describe('replacing the document from outside', () => {
     expect(undone(state)).toBe('remote\none\ntwo\nthree');
   });
 
+  it('undo after remote edits above and below a local edit reverts only the local one', () => {
+    const doc = 'top\nkeep 1\nmiddle\nkeep 2\nbottom';
+    let state = start(doc);
+    const at = doc.indexOf('middle') + 'middle'.length;
+    state = state.update({ changes: { from: at, insert: ' EDITED' } }).state;
+    const remote = 'TOP from the Mac\nkeep 1\nmiddle EDITED\nkeep 2\nBOTTOM from the Mac\nmore';
+    state = state.update(replaceDoc(state, remote, false)!).state;
+    expect(state.doc.toString()).toBe(remote);
+    expect(undone(state)).toBe(remote.replace(' EDITED', ''));
+  });
+
+  it('keeps undo intact in a long script with changes far apart', () => {
+    const lines = Array.from({ length: 6000 }, (_, i) => (i % 3 === 2 ? '' : `Line ${i}.`));
+    const doc = lines.join('\n');
+    let state = start(doc);
+    const at = doc.indexOf('Line 3000.') + 'Line 3000.'.length;
+    state = state.update({ changes: { from: at, insert: ' EDITED' } }).state;
+    const remote = state.doc
+      .toString()
+      .replace('Line 10.', 'Changed early.')
+      .replace('Line 5980.', 'Changed late.');
+    state = state.update(replaceDoc(state, remote, false)!).state;
+    expect(state.doc.toString()).toBe(remote);
+    expect(undone(state)).toBe(remote.replace(' EDITED', ''));
+  });
+
+  it.each([
+    ['a\nb\nc', 'b\nc'],
+    ['a\nb\nc', 'a\nb'],
+    ['a\nb', 'a\nb\nc\nd'],
+    ['b', 'a\nb'],
+    ['', 'a\nb'],
+    ['a\nb', ''],
+    ['a\n', 'a'],
+    ['a', 'a\n'],
+    ['a\n\nb\n\nc', 'x\n\nb\n\n\nc\ny'],
+    ['one\ntwo\nthree\nfour', 'zero\ntwo\nfour\nfive'],
+  ])('produces exactly the new text (%j → %j)', (a, b) => {
+    const state = start(a);
+    const spec = replaceDoc(state, b, true)!;
+    expect(state.update(spec).state.doc.toString()).toBe(b);
+    expect(undone(state.update(spec).state)).toBe(a);
+  });
+
   it('taking the other version is one undo step', () => {
     const state = start(OLD);
     const next = state.update(replaceDoc(state, 'completely\ndifferent', true)!).state;

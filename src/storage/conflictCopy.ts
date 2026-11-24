@@ -12,16 +12,21 @@ export function conflictCopyName(scriptName: string, now: Date): string {
 /**
  * A new file for the copy: next to the original in workspace-folder mode (numbered if the name is
  * taken), otherwise wherever the writer chooses. Null when they cancel the picker.
+ * `originalText` is what the original holds, to put back if the picker emptied it.
  */
 export async function createConflictCopy(
   storage: StoragePort,
   original: FileRef,
   now: Date,
+  originalText: string,
 ): Promise<FileRef | null> {
   const name = conflictCopyName(original.name, now);
   if (!original.folderUri) {
     const picked = await storage.pickCreate(name);
     if (picked?.uri === original.uri) {
+      // Desktop Chrome's save picker can clear an existing file as soon as it is chosen. Only an
+      // empty file is written: anything else there is left as it is.
+      if ((await storage.read(original)).text === '') await storage.write(original, originalText);
       throw new Error('Choose a different file: the copy cannot replace the original.');
     }
     return picked;

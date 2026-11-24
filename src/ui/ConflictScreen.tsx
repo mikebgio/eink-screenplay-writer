@@ -21,7 +21,9 @@ const forDisplay = (text: string) => text.replace(/\r\n?/g, '\n').replace(/\t/g,
 export interface ConflictScreenProps {
   mine: string;
   theirs: string;
-  onChoose: (choice: ConflictChoice) => Promise<ResolveResult>;
+  theirsVersion: string;
+  /** `seenVersion` is the version on screen when the button was pressed. */
+  onChoose: (choice: ConflictChoice, seenVersion: string) => Promise<ResolveResult>;
   onCancel: () => void;
 }
 
@@ -99,9 +101,10 @@ export function ConflictScreen(p: ConflictScreenProps) {
     setBusy(true);
     setNote(null);
     try {
-      const r = await p.onChoose(choice);
+      const r = await p.onChoose(choice, p.theirsVersion);
       if (r.kind === 'changed') {
-        setNote('The other version just changed again. Check it, then choose.');
+        const saved = r.copy ? ` Your version is already saved as ${r.copy.name}.` : '';
+        setNote(`The other version just changed again.${saved} Check it, then choose.`);
       }
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));

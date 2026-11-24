@@ -2,6 +2,10 @@ import { createConflictCopy } from './conflictCopy';
 import type { FileRef, StoragePort } from './port';
 import type { JournalStore } from './journal';
 
+/** Compares versions of a script that may differ only in line endings. */
+const sameLines = (a: string, b: string) =>
+  a.replace(/\r\n?/g, '\n') === b.replace(/\r\n?/g, '\n');
+
 export const AUTOSAVE_MS = 2000;
 export const JOURNAL_MS = 1000;
 
@@ -24,8 +28,11 @@ export type ConflictChoice = 'mine' | 'theirs' | 'both';
 export type ResolveResult =
   /** Applied. `copy` is the new file holding the writer's version ("Keep both"). */
   | { kind: 'resolved'; copy?: FileRef }
-  /** The file changed again, so nothing was applied: `conflict` now holds the newer version. */
-  | { kind: 'changed' }
+  /**
+   * `conflict` holds a newer version than the one the writer chose for, so the original is untouched.
+   * `copy` is set if "Keep both" had already saved the writer's version by then.
+   */
+  | { kind: 'changed'; copy?: FileRef }
   /** Nothing to resolve, or the writer cancelled the save picker. */
   | { kind: 'cancelled' };
 
@@ -37,7 +44,7 @@ export type ReplaceReason = 'reload' | 'theirs' | 'both';
 export interface SessionOptions {
   storage: StoragePort;
   journal: JournalStore;
-  /** Takes the safety copies before a conflict is resolved (`SnapshotService`). */
+  /** Takes the safety copies before anything could lose a version (`SnapshotService`). */
   snapshots: { takeSafetyCopy(text: string): Promise<unknown> };
   onStatus?: (s: SaveStatus) => void;
   onConflict?: (c: Conflict | null) => void;
@@ -93,8 +100,17 @@ export class DocumentSession {
     return null;
   }
 
-  /** Leave the document. Unsaved text (a pending conflict) stays in the journal. */
-  async close(): Promise<void> {
+  /**
+   * Leave the document. Unsaved text stays in the journal; with a pending conflict it is also
+   * snapshotted first, because the journal can be discarded or typed over. Rejects, leaving the
+   * document open, if that fails.
+   */
+  close(): Promise<void> {
+    return this.enqueue(() => this.doClose());
+  }
+
+  private async doClose(): Promise<void> {
+    if (this.conflict) await this.snapshotLocalText();
     if (this.ref && this.dirty) await this.setJournal(this.ref);
     this.generation++;
     this.clearTimers();
@@ -144,9 +160,23 @@ export class DocumentSession {
     return this.enqueue(() => this.doCheck());
   }
 
-  /** Applies the writer's choice, after taking `pre-conflict` snapshots of both versions. */
-  resolveConflict(choice: ConflictChoice): Promise<ResolveResult> {
-    return this.enqueue(() => this.doResolve(choice));
+  /**
+   * Applies the writer's choice, after taking `pre-conflict` snapshots of both versions.
+   * `seenVersion` is the `theirsVersion` on screen when they chose: a check queued ahead of this may
+   * have found a newer one since, and then nothing is applied.
+   */
+  resolveConflict(choice: ConflictChoice, seenVersion: string): Promise<ResolveResult> {
+    return this.enqueue(() => this.doResolve(choice, seenVersion));
+  }
+
+  /** Safety copy of the live text, repeated until no newer typing arrived while writing it. */
+  private async snapshotLocalText(): Promise<string> {
+    let text: string;
+    do {
+      text = this.text;
+      await this.o.snapshots.takeSafetyCopy(text);
+    } while (this.text !== text);
+    return text;
   }
 
   private enqueue<T>(job: () => Promise<T>): Promise<T> {
@@ -205,12 +235,19 @@ export class DocumentSession {
     ref: FileRef,
     remote: { text: string; version: string },
   ): Promise<CheckResult> {
-    if (remote.text === this.text) {
-      // Both sides made the same change.
-      await this.markSaved(ref, remote.text, remote.version);
+    if (sameLines(remote.text, this.text)) {
+      // Both sides made the same change. Line endings alone aren't one, so nothing is written back.
+      await this.markSaved(ref, this.text, remote.version);
       return 'unchanged';
     }
     if (this.text === this.savedText) {
+      // The file may be stale or truncated: keep what it replaces.
+      const outgoing = this.text;
+      const gen = this.generation;
+      await this.o.snapshots.takeSafetyCopy(outgoing);
+      if (gen !== this.generation) return 'unchanged';
+      // Typed while the snapshot was written: those are unsaved edits now.
+      if (this.text !== outgoing) return this.reconcile(ref, remote);
       this.clearTimers();
       // The journal is left alone: it may hold a recovery the writer hasn't answered yet.
       this.replace(remote.text, remote.version, 'reload');
@@ -224,19 +261,16 @@ export class DocumentSession {
     return 'conflict';
   }
 
-  private async doResolve(choice: ConflictChoice): Promise<ResolveResult> {
+  private async doResolve(choice: ConflictChoice, seenVersion: string): Promise<ResolveResult> {
     const ref = this.ref;
     const seen = this.conflict;
     if (!ref || !seen) return { kind: 'cancelled' };
+    if (seen.theirsVersion !== seenVersion) return { kind: 'changed' };
     const gen = this.generation;
     const gone = () => gen !== this.generation;
 
     // Nothing is applied until both versions are safely stored.
-    let mine: string;
-    do {
-      mine = this.text;
-      await this.o.snapshots.takeSafetyCopy(mine);
-    } while (this.text !== mine);
+    const mine = await this.snapshotLocalText();
     await this.o.snapshots.takeSafetyCopy(seen.theirs);
 
     /** True if the file is still the version the writer saw; otherwise shows them the new one. */
@@ -259,12 +293,12 @@ export class DocumentSession {
 
     let copy: FileRef | undefined;
     if (choice === 'both') {
-      const created = await createConflictCopy(this.o.storage, ref, new Date());
+      const created = await createConflictCopy(this.o.storage, ref, new Date(), seen.theirs);
       if (!created) return { kind: 'cancelled' };
       await this.o.storage.write(created, mine);
       copy = created;
       // The picker may have been open a while: don't adopt a version the writer hasn't seen.
-      if (!(await stillSeen())) return { kind: 'changed' };
+      if (!(await stillSeen())) return { kind: 'changed', copy };
     }
     this.clearTimers();
     this.setConflict(null);

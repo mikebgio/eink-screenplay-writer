@@ -53,6 +53,18 @@ export function diffTitleValues(text: string, values: TitleValues): TitleChanges
   return out;
 }
 
+/**
+ * For a form that was open while the script changed under it: fields the writer edited keep their
+ * value, and the rest follow the script as it is now, so saving can't put old values back.
+ */
+export function rebaseTitleValues(text: string, opened: TitleValues, edited: TitleValues): TitleValues {
+  const out = titleValues(text);
+  for (const f of TITLE_FIELDS) {
+    if (normalize(edited[f.id]) !== normalize(opened[f.id])) out[f.id] = edited[f.id];
+  }
+  return out;
+}
+
 /** Trims every line and drops empty ones (an empty line would end the title page). */
 function normalize(value: string): string {
   return value

@@ -12,6 +12,7 @@ import {
   setVariable,
   variableUses,
   diffTitleValues,
+  rebaseTitleValues,
   titlePageChanges,
   titleValues,
   type EditResult,
@@ -51,7 +52,7 @@ import { LatencyPanel } from './LatencyPanel';
 import { TitlePageForm } from './TitlePageForm';
 import { PERSONAL_DICTIONARY_KEY, WordList, ignoreKey } from '../spell/wordList';
 import { StartScreen } from './StartScreen';
-import { commands, registerCommand } from './commands';
+import { commands, eventToKey, registerCommand } from './commands';
 import { ShortcutHelp } from './ShortcutHelp';
 import { ExportDialog } from './ExportDialog';
 import { EXPORT_FORMATS } from './exportFormats';
@@ -79,6 +80,8 @@ export function App() {
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [conflictOpen, setConflictOpen] = useState(false);
   const hadConflict = useRef(false);
+  const conflictOpenRef = useRef(false);
+  conflictOpenRef.current = conflictOpen;
   const onReplaceRef = useRef<(text: string, reason: ReplaceReason) => void>(() => {});
   const session = useMemo(
     () =>
@@ -327,7 +330,14 @@ export function App() {
         run: () => actions.current.find(true),
       }),
     ];
-    const onKey = (e: KeyboardEvent) => void commands.handleEvent(e);
+    const onKey = (e: KeyboardEvent) => {
+      // The conflict screen is modal: no command acts behind it (nor does the browser's own).
+      if (conflictOpenRef.current) {
+        if (commands.forKey(eventToKey(e))) e.preventDefault();
+        return;
+      }
+      commands.handleEvent(e);
+    };
     window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('keydown', onKey, true);
@@ -380,18 +390,19 @@ export function App() {
     }
   };
 
-  const resolveConflict = async (choice: ConflictChoice) => {
+  const resolveConflict = async (choice: ConflictChoice, seenVersion: string) => {
     const original = session.ref;
-    const result = await session.resolveConflict(choice);
+    const result = await session.resolveConflict(choice, seenVersion);
     refreshSnaps();
-    if (result.kind === 'resolved' && result.copy && original) {
+    const copy = result.kind === 'cancelled' ? undefined : result.copy;
+    if (copy && original) {
       // Both show in recent files, the open script first.
-      await recent.add(result.copy);
+      await recent.add(copy);
       setRecents(await recent.add(original));
-      if (workspace && result.copy.folderUri === workspace.uri) {
+      if (workspace && copy.folderUri === workspace.uri) {
         setWorkspace({ uri: workspace.uri, files: await storage.listFolder(workspace.uri) });
       }
-      setToast(`Your version was saved as ${result.copy.name}.`);
+      if (result.kind === 'resolved') setToast(`Your version was saved as ${copy.name}.`);
     }
     if (result.kind === 'resolved') editor.current?.view().focus();
     return result;
@@ -569,16 +580,23 @@ export function App() {
           type="button"
           onClick={() => {
             const wasPending = session.conflict !== null;
-            void session.save().then(async () => {
-              // A conflict found just now is shown first. A cancelled one can be left: the
-              // journal keeps the writer's text until the script is opened again.
-              if (!wasPending && session.conflict) return;
-              await session.close();
-              snapshots.detach();
-              setToast(null);
-              setSnapOpen(false);
-              setCurrent(null);
-            });
+            void session
+              .save()
+              .then(async () => {
+                // A conflict found just now is shown first. A cancelled one can be left: the
+                // writer's text is snapshotted and journalled until the script is opened again.
+                if (!wasPending && session.conflict) return;
+                await session.close();
+                snapshots.detach();
+                setToast(null);
+                setSnapOpen(false);
+                setCurrent(null);
+              })
+              .catch((e) =>
+                setToast(
+                  `Still open, to keep your changes safe: ${e instanceof Error ? e.message : String(e)}`,
+                ),
+              );
           }}
         >
           Files
@@ -652,6 +670,7 @@ export function App() {
         <ConflictScreen
           mine={session.text}
           theirs={conflict.theirs}
+          theirsVersion={conflict.theirsVersion}
           onChoose={resolveConflict}
           onCancel={() => {
             setConflictOpen(false);
@@ -661,7 +680,7 @@ export function App() {
         />
       )}
       {recovery && (
-        <div class="recovery">
+        <div class="recovery" inert={conflictOpen}>
           Recover unsaved changes from {new Date(recovery.savedAt).toLocaleString()}?
           <button
             type="button"
@@ -757,7 +776,9 @@ export function App() {
               const h = editor.current;
               if (h) {
                 const t = h.getText();
-                h.apply(titlePageChanges(t, diffTitleValues(t, values)), 'input.title');
+                // The script may have been reloaded since the form opened.
+                const merged = rebaseTitleValues(t, titleForm, values);
+                h.apply(titlePageChanges(t, diffTitleValues(t, merged)), 'input.title');
               }
               setTitleForm(null);
             }}

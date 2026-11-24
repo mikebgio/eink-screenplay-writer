@@ -80,6 +80,60 @@ export function mapLine(hunks: Hunk[], line: number): number {
   return Math.max(0, Math.min(target ?? after - 1, after - 1));
 }
 
+export interface Replacement {
+  from: number;
+  to: number;
+  insert: string;
+}
+
+/**
+ * Replacements that turn `a` into `b`, one per run of changed lines, so unchanged lines between two
+ * changes are never touched (the undo history stays attached to them). Offsets refer to `a`.
+ */
+export function lineChanges(a: string, b: string): Replacement[] {
+  // With a newline added to both, every line, the last included, is "text + newline".
+  const out: Replacement[] = [];
+  let pos = 0;
+  let run: { from: number; to: number; insert: string } | null = null;
+  const flush = () => {
+    if (!run) return;
+    let { from, to, insert } = run;
+    run = null;
+    if (to > a.length) {
+      // The run reaches the added newline, which isn't really there.
+      to = a.length;
+      if (from > 0) {
+        // Take the newline before the run instead (that line is unchanged, so nothing overlaps).
+        from--;
+        insert = insert === '' ? '' : `\n${insert.slice(0, -1)}`;
+      } else {
+        insert = insert.slice(0, -1);
+      }
+    }
+    // Within the run, keep what the old and new text share at both ends.
+    const c = textChange(a.slice(from, to), insert);
+    out.push({ from: from + c.from, to: from + c.to, insert: c.insert });
+  };
+  // `diff` reads '' as no lines at all, but here it is one empty line.
+  for (const h of diff(`${a}\n.`, `${b}\n.`)) {
+    const size = h.lines.reduce((n, line) => n + line.length + 1, 0);
+    if (h.kind === 'equal') {
+      flush();
+      pos += size;
+      continue;
+    }
+    run ??= { from: pos, to: pos, insert: '' };
+    if (h.kind === 'remove') {
+      pos += size;
+      run.to = pos;
+    } else {
+      run.insert += h.lines.map((line) => `${line}\n`).join('');
+    }
+  }
+  flush();
+  return out;
+}
+
 /** The single replacement that turns `a` into `b`, trimmed to what differs. */
 export function textChange(a: string, b: string): { from: number; to: number; insert: string } {
   const max = Math.min(a.length, b.length);

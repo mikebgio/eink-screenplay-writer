@@ -273,7 +273,7 @@ public class DocumentStorePlugin extends Plugin {
             String name = call.getString("name");
             if (!validSidecarName(name)) throw new Exception("Bad name");
             DocumentFile f = d.findFile(name);
-            if (f == null) f = d.createFile("text/plain", name);
+            if (f == null) f = d.createFile("application/octet-stream", name);
             if (f == null) throw new Exception("Cannot create " + name);
             writeUri(f.getUri(), call.getString("text", ""));
             call.resolve();

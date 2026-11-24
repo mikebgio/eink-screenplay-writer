@@ -3,7 +3,7 @@ import { conflictCopyName } from '../src/storage/conflictCopy';
 import { MemoryJournal } from '../src/storage/journal';
 import { MemoryStorage } from '../src/storage/memory';
 import { syncHash, type SidecarStore } from '../src/storage/port';
-import { DocumentSession, type Conflict } from '../src/storage/session';
+import { DocumentSession, type Conflict, type ConflictChoice } from '../src/storage/session';
 import { SnapshotService } from '../src/storage/snapshots';
 
 const URI = 'mem://f/the-long-night.fountain';
@@ -54,6 +54,10 @@ describe('sync conflicts', () => {
     await vi.advanceTimersByTimeAsync(2000);
     return ref;
   }
+
+  /** Chooses, as the screen does: for the version it is showing now. */
+  const resolve = (choice: ConflictChoice) =>
+    session.resolveConflict(choice, session.conflict?.theirsVersion ?? '');
 
   const preConflictTexts = async () => {
     const list = (await snapshots.list()).filter((s) => s.kind === 'pre-conflict');
@@ -161,6 +165,57 @@ describe('sync conflicts', () => {
       expect(storage.writeCount).toBe(0);
     });
 
+    it('keeps a pre-conflict snapshot of the text a reload replaces', async () => {
+      await start();
+      session.edit(MINE);
+      await vi.advanceTimersByTimeAsync(2000); // saved
+      storage.simulateExternalEdit(URI, ''); // e.g. a truncated copy from the sync app
+      expect(await session.onForeground()).toBe('reloaded');
+      expect(await preConflictTexts()).toEqual([MINE]);
+    });
+
+    it('does not reload when that snapshot cannot be written', async () => {
+      await start();
+      storage.simulateExternalEdit(URI, THEIRS);
+      vi.spyOn(snapshots, 'takeSafetyCopy').mockRejectedValueOnce(new Error('disk full'));
+      await expect(session.onForeground()).rejects.toThrow('disk full');
+      expect(session.text).toBe(BASE);
+      expect(session.baseVersion).toBe(syncHash(BASE));
+      expect(replaced).toEqual([]);
+    });
+
+    it('treats an edit typed while that snapshot is written as unsaved', async () => {
+      await start();
+      storage.simulateExternalEdit(URI, THEIRS);
+      const take = snapshots.takeSafetyCopy.bind(snapshots);
+      vi.spyOn(snapshots, 'takeSafetyCopy').mockImplementationOnce((text) => {
+        session.edit(MINE);
+        return take(text);
+      });
+      expect(await session.onForeground()).toBe('conflict');
+      expect(session.text).toBe(MINE);
+      expect(replaced).toEqual([]);
+    });
+
+    // 10: another device may save with CRLF line endings.
+    it('the same edit saved with CRLF is not a conflict', async () => {
+      await start();
+      session.edit(MINE);
+      const crlf = MINE.replace(/\n/g, '\r\n');
+      storage.simulateExternalEdit(URI, crlf);
+      expect(await session.onForeground()).toBe('unchanged');
+      expect(session.conflict).toBeNull();
+      expect(session.status).toBe('saved');
+      expect(session.baseVersion).toBe(syncHash(crlf));
+      expect(journal.entries.has(URI)).toBe(false);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(storage.files.get(URI)).toBe(crlf);
+      expect(storage.writeCount).toBe(0);
+      session.edit('next');
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(storage.files.get(URI)).toBe('next');
+    });
+
     it('does nothing when the file is unchanged', async () => {
       await start();
       session.edit(MINE);
@@ -220,7 +275,7 @@ describe('sync conflicts', () => {
   describe('resolving', () => {
     it('Keep mine writes the local text over the file', async () => {
       await conflicted();
-      expect(await session.resolveConflict('mine')).toEqual({ kind: 'resolved' });
+      expect(await resolve('mine')).toEqual({ kind: 'resolved' });
       expect(storage.files.get(URI)).toBe(MINE);
       expect(session.text).toBe(MINE);
       expect(session.baseVersion).toBe(syncHash(MINE));
@@ -232,7 +287,7 @@ describe('sync conflicts', () => {
 
     it('Take theirs replaces the local text and leaves the file alone', async () => {
       await conflicted();
-      expect(await session.resolveConflict('theirs')).toEqual({ kind: 'resolved' });
+      expect(await resolve('theirs')).toEqual({ kind: 'resolved' });
       expect(storage.files.get(URI)).toBe(THEIRS);
       expect(storage.writeCount).toBe(0);
       expect(session.text).toBe(THEIRS);
@@ -245,7 +300,7 @@ describe('sync conflicts', () => {
     it('Keep both in folder mode saves mine next to the original and takes theirs', async () => {
       const ref = await conflicted();
       const create = vi.spyOn(storage, 'pickCreate');
-      const result = await session.resolveConflict('both');
+      const result = await resolve('both');
       const uri = 'mem://f/the-long-night (conflict 2026-11-24 10-05).fountain';
       expect(result).toEqual({
         kind: 'resolved',
@@ -264,7 +319,7 @@ describe('sync conflicts', () => {
       await conflicted();
       const taken = 'mem://f/the-long-night (conflict 2026-11-24 10-05).fountain';
       storage.seed(taken, 'earlier copy', 'mem://f');
-      const result = await session.resolveConflict('both');
+      const result = await resolve('both');
       expect(storage.files.get(taken)).toBe('earlier copy');
       expect(result.kind === 'resolved' && result.copy?.name).toBe(
         'the-long-night (conflict 2026-11-24 10-05) 2.fountain',
@@ -275,7 +330,7 @@ describe('sync conflicts', () => {
       await conflicted(null);
       storage.nextCreate = { uri: 'mem://elsewhere/copy.fountain', name: '' };
       const create = vi.spyOn(storage, 'pickCreate');
-      const result = await session.resolveConflict('both');
+      const result = await resolve('both');
       expect(create).toHaveBeenCalledWith('the-long-night (conflict 2026-11-24 10-05).fountain');
       expect(result.kind).toBe('resolved');
       expect(storage.files.get('mem://elsewhere/copy.fountain')).toBe(MINE);
@@ -286,7 +341,7 @@ describe('sync conflicts', () => {
     it('Keep both stays unresolved when the picker is cancelled', async () => {
       await conflicted(null);
       storage.nextCreate = null;
-      expect(await session.resolveConflict('both')).toEqual({ kind: 'cancelled' });
+      expect(await resolve('both')).toEqual({ kind: 'cancelled' });
       expect(session.conflict).not.toBeNull();
       expect(session.text).toBe(MINE);
       expect(storage.files.get(URI)).toBe(THEIRS);
@@ -295,7 +350,7 @@ describe('sync conflicts', () => {
     it('Keep both refuses to save the copy over the original', async () => {
       await conflicted(null);
       storage.nextCreate = { uri: URI, name: 'the-long-night.fountain' };
-      await expect(session.resolveConflict('both')).rejects.toThrow(/different file/);
+      await expect(resolve('both')).rejects.toThrow(/different file/);
       expect(storage.files.get(URI)).toBe(THEIRS);
       expect(session.conflict).not.toBeNull();
     });
@@ -307,7 +362,7 @@ describe('sync conflicts', () => {
         const take = vi.spyOn(snapshots, 'takeSafetyCopy');
         const write = vi.spyOn(storage, 'write');
         const create = vi.spyOn(storage, 'createInFolder');
-        await session.resolveConflict(choice);
+        await resolve(choice);
         expect(await preConflictTexts()).toEqual(expect.arrayContaining([MINE, THEIRS]));
         expect(await preConflictTexts()).toHaveLength(2);
         const lastSnapshot = Math.max(...take.mock.invocationCallOrder);
@@ -323,14 +378,14 @@ describe('sync conflicts', () => {
       await snapshots.take(MINE, 'auto'); // an auto snapshot is prunable, so it is not a safety net by itself
       storage.simulateExternalEdit(URI, THEIRS);
       await vi.advanceTimersByTimeAsync(2000);
-      await session.resolveConflict('theirs');
+      await resolve('theirs');
       expect(await preConflictTexts()).toEqual(expect.arrayContaining([MINE, THEIRS]));
     });
 
     it('applies nothing when a snapshot cannot be written', async () => {
       await conflicted();
       vi.spyOn(snapshots, 'takeSafetyCopy').mockRejectedValue(new Error('disk full'));
-      await expect(session.resolveConflict('mine')).rejects.toThrow('disk full');
+      await expect(resolve('mine')).rejects.toThrow('disk full');
       expect(storage.files.get(URI)).toBe(THEIRS);
       expect(session.conflict).not.toBeNull();
       expect(session.text).toBe(MINE);
@@ -341,12 +396,61 @@ describe('sync conflicts', () => {
       async (choice) => {
         await conflicted();
         storage.simulateExternalEdit(URI, 'newer');
-        expect(await session.resolveConflict(choice)).toEqual({ kind: 'changed' });
+        expect(await resolve(choice)).toEqual({ kind: 'changed' });
         expect(storage.files.get(URI)).toBe('newer');
         expect(session.text).toBe(MINE);
         expect(session.conflict?.theirs).toBe('newer');
       },
     );
+
+    it.each(['mine', 'theirs', 'both'] as const)(
+      'does not apply "%s" when a queued check swaps the version after the button press',
+      async (choice) => {
+        await conflicted();
+        const shown = session.conflict!.theirsVersion;
+        storage.simulateExternalEdit(URI, 'newer');
+        const check = session.onForeground(); // e.g. the click that refocused the window
+        const result = session.resolveConflict(choice, shown);
+        await check;
+        expect(await result).toEqual({ kind: 'changed' });
+        expect(storage.files.get(URI)).toBe('newer');
+        expect(session.text).toBe(MINE);
+      },
+    );
+
+    it('hands back the copy when the original changes during Keep both', async () => {
+      await conflicted();
+      const create = storage.createInFolder.bind(storage);
+      vi.spyOn(storage, 'createInFolder').mockImplementation((folder, name) => {
+        storage.simulateExternalEdit(URI, 'newer');
+        return create(folder, name);
+      });
+      const result = await resolve('both');
+      expect(result.kind).toBe('changed');
+      expect(result.kind === 'changed' && result.copy?.name).toMatch(/\(conflict /);
+      expect(session.conflict?.theirs).toBe('newer');
+    });
+
+    it('Keep both restores an original that the save picker emptied', async () => {
+      const ref = await conflicted(null);
+      vi.spyOn(storage, 'pickCreate').mockImplementation(() => {
+        storage.simulateExternalEdit(URI, ''); // desktop Chrome clears a chosen existing file
+        return Promise.resolve(ref);
+      });
+      await expect(resolve('both')).rejects.toThrow(/different file/);
+      expect(storage.files.get(URI)).toBe(THEIRS);
+    });
+
+    it('Keep both leaves the original alone if the picker did not empty it', async () => {
+      const ref = await conflicted(null);
+      vi.spyOn(storage, 'pickCreate').mockImplementation(() => {
+        storage.simulateExternalEdit(URI, 'newer');
+        return Promise.resolve(ref);
+      });
+      await expect(resolve('both')).rejects.toThrow(/different file/);
+      expect(storage.files.get(URI)).toBe('newer');
+      expect(storage.writeCount).toBe(0);
+    });
 
     it('cancelling keeps autosave off and keeps the conflict for the banner', async () => {
       await conflicted();
@@ -360,7 +464,7 @@ describe('sync conflicts', () => {
 
     it.each(['mine', 'theirs', 'both'] as const)('autosave resumes after "%s"', async (choice) => {
       await conflicted();
-      await session.resolveConflict(choice);
+      await resolve(choice);
       session.edit('after');
       await vi.advanceTimersByTimeAsync(2000);
       expect(storage.files.get(URI)).toBe('after');
@@ -369,7 +473,7 @@ describe('sync conflicts', () => {
 
     it('does nothing without a pending conflict', async () => {
       await start();
-      expect(await session.resolveConflict('mine')).toEqual({ kind: 'cancelled' });
+      expect(await resolve('mine')).toEqual({ kind: 'cancelled' });
       expect(storage.writeCount).toBe(0);
     });
   });
@@ -391,6 +495,27 @@ describe('sync conflicts', () => {
       expect(journal.entries.get(URI)?.text).toBe('latest');
       expect(session.conflict).toBeNull();
       expect(conflicts.at(-1)).toBeNull();
+    });
+
+    it('closing with a pending conflict first snapshots the local text', async () => {
+      await conflicted();
+      session.edit('latest');
+      await session.close();
+      expect(await preConflictTexts()).toEqual(['latest']);
+    });
+
+    it('stays on the script when that snapshot cannot be written', async () => {
+      const ref = await conflicted();
+      vi.spyOn(snapshots, 'takeSafetyCopy').mockRejectedValueOnce(new Error('disk full'));
+      await expect(session.close()).rejects.toThrow('disk full');
+      expect(session.ref).toBe(ref);
+      expect(session.conflict).not.toBeNull();
+    });
+
+    it('closing without a conflict takes no snapshot', async () => {
+      await start();
+      await session.close();
+      expect(await preConflictTexts()).toEqual([]);
     });
 
     it('recovering edits older than the file is a conflict, not an overwrite', async () => {

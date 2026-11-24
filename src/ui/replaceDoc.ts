@@ -1,6 +1,6 @@
 /** Replacing the whole script with another version in place (ticket 12). No DOM: unit-tested. */
 import { Transaction, type EditorState, type TransactionSpec } from '@codemirror/state';
-import { diff, mapLine, textChange } from '../engine';
+import { diff, lineChanges, mapLine } from '../engine';
 import { asUndoStep } from './historyConfig';
 
 /**
@@ -18,7 +18,7 @@ export function replaceDoc(
   if (next === old) return null;
   const head = state.selection.main.head;
   const at = state.doc.lineAt(head);
-  const changes = state.changes(textChange(old, next));
+  const changes = state.changes(lineChanges(old, next));
   const doc = changes.apply(state.doc);
   const line = doc.line(mapLine(diff(old, next), at.number - 1) + 1);
   const spec: TransactionSpec = {

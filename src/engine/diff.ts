@@ -7,8 +7,10 @@ export interface Hunk {
 
 /** Line diff of `a` (old) against `b` (new): LCS after trimming the common prefix and suffix. */
 export function diff(a: string, b: string): Hunk[] {
-  const x = a === '' ? [] : a.split('\n');
-  const y = b === '' ? [] : b.split('\n');
+  return diffLines(a === '' ? [] : a.split('\n'), b === '' ? [] : b.split('\n'));
+}
+
+function diffLines(x: string[], y: string[]): Hunk[] {
   let start = 0;
   while (start < x.length && start < y.length && x[start] === y[start]) start++;
   let endX = x.length;
@@ -31,13 +33,18 @@ export function diff(a: string, b: string): Hunk[] {
   return hunks;
 }
 
-/** Above this many table cells (~16 MB), the changed middle is reported as one remove + one add. */
+/**
+ * Above this many table cells (~16 MB), the changed middle is first split at lines that occur exactly
+ * once on each side; a part with no such line is reported as one remove + one add.
+ */
 const MAX_LCS_CELLS = 4_000_000;
 
 function lcsDiff(x: string[], y: string[]): Hunk[] {
   const n = x.length;
   const m = y.length;
   if ((n + 1) * (m + 1) > MAX_LCS_CELLS) {
+    const anchors = uniqueAnchors(x, y);
+    if (anchors.length > 0) return diffBetween(x, y, anchors);
     return [
       ...(n ? [{ kind: 'remove' as const, lines: x }] : []),
       ...(m ? [{ kind: 'add' as const, lines: y }] : []),
@@ -70,6 +77,53 @@ function lcsDiff(x: string[], y: string[]): Hunk[] {
       push('add', y[j++]!);
     }
   }
+  return out;
+}
+
+/** Index pairs of lines unique in both `x` and `y`, the longest run that is in order in both. */
+function uniqueAnchors(x: string[], y: string[]): [number, number][] {
+  const index = (lines: string[]) => {
+    const seen = new Map<string, number>(); // line -> its index, or -1 once repeated
+    lines.forEach((line, i) => seen.set(line, seen.has(line) ? -1 : i));
+    return seen;
+  };
+  const inY = index(y);
+  const pairs: [number, number][] = [];
+  for (const [line, i] of index(x)) {
+    const j = inY.get(line) ?? -1;
+    if (i >= 0 && j >= 0) pairs.push([i, j]);
+  }
+  pairs.sort((a, b) => a[0] - b[0]);
+  // Longest increasing subsequence of the `y` indexes (patience sorting).
+  const tails: number[] = []; // tails[k] = the pair ending the best run of length k + 1
+  const previous: number[] = [];
+  pairs.forEach(([, j], p) => {
+    let lo = 0;
+    let hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pairs[tails[mid]!]![1] < j) lo = mid + 1;
+      else hi = mid;
+    }
+    previous[p] = lo > 0 ? tails[lo - 1]! : -1;
+    tails[lo] = p;
+  });
+  const out: [number, number][] = [];
+  for (let p = tails.at(-1) ?? -1; p >= 0; p = previous[p]!) out.push(pairs[p]!);
+  return out.reverse();
+}
+
+/** Diffs each stretch between the anchored (equal) lines on its own. */
+function diffBetween(x: string[], y: string[], anchors: [number, number][]): Hunk[] {
+  const out: Hunk[] = [];
+  let i = 0;
+  let j = 0;
+  for (const [a, b] of anchors) {
+    out.push(...diffLines(x.slice(i, a), y.slice(j, b)), { kind: 'equal', lines: [x[a]!] });
+    i = a + 1;
+    j = b + 1;
+  }
+  out.push(...diffLines(x.slice(i), y.slice(j)));
   return out;
 }
 
