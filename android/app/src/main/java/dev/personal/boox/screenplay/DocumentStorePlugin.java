@@ -139,6 +139,26 @@ public class DocumentStorePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void createInFolder(PluginCall call) {
+        try {
+            DocumentFile root = folder(call.getString("folderUri"));
+            String name = call.getString("name");
+            if (root == null || name == null || name.isEmpty() || name.contains("/")) {
+                throw new Exception("Bad folder or name");
+            }
+            // A generic type, so providers don't add ".txt" after ".fountain".
+            DocumentFile f = root.createFile("application/octet-stream", name);
+            if (f == null) throw new Exception("Cannot create " + name);
+            JSObject out = new JSObject();
+            out.put("uri", f.getUri().toString());
+            out.put("name", f.getName() != null ? f.getName() : name);
+            call.resolve(out);
+        } catch (Exception e) {
+            call.reject("Create failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void read(PluginCall call) {
         try {
             JSObject out = new JSObject();

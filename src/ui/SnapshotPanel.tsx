@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { diff, diffRows, diffStats, type DiffRow } from '../engine';
 import type { Snapshot, SnapshotEntry } from '../storage/snapshots';
+import { DiffPage, Pager, paginateRows } from './diffPage';
 
 /** Rows per comparison page: the view never scrolls. */
 export const DIFF_ROWS_PER_PAGE = 24;
-
-export function paginateRows(rows: DiffRow[], perPage = DIFF_ROWS_PER_PAGE): DiffRow[][] {
-  const pages: DiffRow[][] = [];
-  for (let i = 0; i < rows.length; i += perPage) pages.push(rows.slice(i, i + perPage));
-  return pages.length ? pages : [[]];
-}
 
 /** How many of the newest snapshots get a "+n −m" summary. */
 const STATS_FOR = 10;
@@ -85,7 +80,7 @@ export function SnapshotPanel(p: SnapshotPanelProps) {
   };
 
   if (compare) {
-    const pages = paginateRows(compare.rows);
+    const pages = paginateRows(compare.rows, DIFF_ROWS_PER_PAGE);
     const shown = Math.min(page, pages.length - 1);
     return (
       <aside class="drawer snap-compare" aria-label="Compare">
@@ -98,35 +93,8 @@ export function SnapshotPanel(p: SnapshotPanelProps) {
           </button>
         </div>
         <p>− removed since then · + added since then</p>
-        <div class="diff-page">
-          {pages[shown]!.map((r, i) =>
-            r.kind === 'collapsed' ? (
-              <div key={i} class="diff-row diff-collapsed">
-                … {r.count} unchanged lines …
-              </div>
-            ) : (
-              <div key={i} class={`diff-row diff-${r.kind}`}>
-                {r.kind === 'remove' ? '− ' : r.kind === 'add' ? '+ ' : '  '}
-                {r.text}
-              </div>
-            ),
-          )}
-        </div>
-        <div class="var-menu">
-          <button type="button" disabled={shown === 0} onClick={() => setPage(shown - 1)}>
-            Prev
-          </button>
-          <span>
-            {shown + 1} / {pages.length}
-          </span>
-          <button
-            type="button"
-            disabled={shown >= pages.length - 1}
-            onClick={() => setPage(shown + 1)}
-          >
-            Next
-          </button>
-        </div>
+        <DiffPage rows={pages[shown]!} />
+        <Pager page={shown} count={pages.length} onPage={setPage} />
       </aside>
     );
   }

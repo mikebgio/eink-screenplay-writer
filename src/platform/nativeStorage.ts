@@ -24,6 +24,10 @@ export class NativeStorage implements StoragePort {
       .map((f) => ({ ...f, folderUri }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
+  async createInFolder(folderUri: string, name: string): Promise<FileRef> {
+    const r = await DocumentStore.createInFolder({ folderUri, name });
+    return { uri: r.uri, name: r.name, folderUri };
+  }
   async read(ref: FileRef) {
     const { text } = await DocumentStore.read({ uri: ref.uri });
     return { text, version: await hashText(text) };

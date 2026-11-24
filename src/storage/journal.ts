@@ -2,6 +2,8 @@
 export interface JournalEntry {
   text: string;
   savedAt: number;
+  /** Version of the file the edits started from; missing in journals written before ticket 12. */
+  baseVersion?: string;
 }
 
 export interface JournalStore {

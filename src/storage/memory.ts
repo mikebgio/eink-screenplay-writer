@@ -47,6 +47,12 @@ export class MemoryStorage implements StoragePort {
         .map((uri) => ({ uri, name: uri.slice(prefix.length), folderUri })),
     );
   }
+  createInFolder(folderUri: string, name: string): Promise<FileRef> {
+    const uri = `${folderUri.replace(/\/$/, '')}/${name}`;
+    if (this.files.has(uri)) return Promise.reject(new Error(`File exists: ${name}`));
+    this.files.set(uri, '');
+    return Promise.resolve({ uri, name, folderUri });
+  }
   read(ref: FileRef) {
     const text = this.files.get(ref.uri);
     if (text === undefined) return Promise.reject(new Error(`No such file: ${ref.uri}`));

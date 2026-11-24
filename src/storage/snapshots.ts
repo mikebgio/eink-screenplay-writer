@@ -108,7 +108,7 @@ export interface SnapshotEntry extends Snapshot {
 }
 
 /**
- * Snapshots of one open script. Ticket 12 calls `take(text, 'pre-conflict')` before it
+ * Snapshots of one open script. Conflict resolution (ticket 12) calls `takeSafetyCopy` before it
  * overwrites or replaces anything.
  */
 export class SnapshotService {
@@ -177,6 +177,24 @@ export class SnapshotService {
     if (!store) throw new Error('No file attached');
     // Never two identical snapshots in a row. A named one is the writer's explicit ask: always written.
     if (kind !== 'named' && text === this.lastText) return null;
+    return this.write(store, text, kind, label);
+  }
+
+  /**
+   * A `pre-conflict` snapshot that is always written, even if the previous snapshot has the same text:
+   * that one may be an auto snapshot, which pruning can delete (ticket 12).
+   */
+  async takeSafetyCopy(text: string): Promise<Snapshot> {
+    if (!this.store) throw new Error('No file attached');
+    return this.write(this.store, text, 'pre-conflict');
+  }
+
+  private async write(
+    store: SidecarStore,
+    text: string,
+    kind: SnapshotKind,
+    label?: string,
+  ): Promise<Snapshot> {
     let time = Math.floor(this.now() / 1000) * 1000;
     let name = snapshotFileName(time, kind, label);
     const existing = new Set(await store.list());

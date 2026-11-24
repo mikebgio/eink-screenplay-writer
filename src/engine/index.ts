@@ -5,6 +5,8 @@ export type { PaginateOptions } from './pageRules';
 export { displayPages, pageIndexForLine, sourceLineOf } from './locate';
 export { diff, diffStats, diffRows, COLLAPSE_OVER } from './diff';
 export type { Hunk, DiffRow } from './diff';
+export { sideBySideRows, firstDifference, wrapLine, mapLine, textChange } from './conflictView';
+export type { SideBySideRow } from './conflictView';
 export { renderPageText, renderPagedText } from './pageText';
 export {
   resolve,

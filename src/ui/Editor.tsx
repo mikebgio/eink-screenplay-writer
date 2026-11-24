@@ -9,12 +9,15 @@ import { asUndoStep, historyExtension } from './historyConfig';
 import { findExtension, openFind } from './findPanel';
 import { recheckSpelling, spellExtension, type SpellHooks } from './spellMarks';
 import { editingExtensions } from './editing';
+import { replaceDoc } from './replaceDoc';
 
 /** What the rest of the app can do to the editor: variable edits and jumping to a use. */
 export interface EditorHandle {
   getText(): string;
   /** Applies all changes as one transaction (one undo step). Offsets refer to the current text. */
   apply(changes: TextChange[], userEvent?: string): void;
+  /** Swaps in another version of the script, keeping the cursor near its line. See `replaceDoc`. */
+  replace(text: string, undoable: boolean): void;
   /** Opens the find panel (with the cursor in Replace when `withReplace`). */
   openFind(withReplace?: boolean): void;
   /** The CodeMirror view, for commands that act on it directly. */
@@ -106,6 +109,10 @@ export function Editor({
       view: () => v,
       apply: (changes, userEvent = 'input.variable') => {
         if (changes.length > 0) v.dispatch(asUndoStep({ changes }, userEvent));
+      },
+      replace: (text, undoable) => {
+        const spec = replaceDoc(v.state, text, undoable);
+        if (spec) v.dispatch(spec);
       },
       openFind: (withReplace) => void openFind(v, withReplace),
       reveal: (from, to) => {
