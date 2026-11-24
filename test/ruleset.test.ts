@@ -59,4 +59,11 @@ describe('scripts/apply-ruleset.sh', () => {
     expect(script).toMatch(/gh api --method PUT .*--input .*\.github\/rulesets\/main\.json/);
     expect(script).toMatch(/gh api "repos\/\$REPO\/rulesets\/\$RULESET_ID"[^\n]*--jq/);
   });
+
+  it('saves the live ruleset before the PUT, and reads back conditions and bypass actors', () => {
+    const save = script.indexOf('> "$BACKUP"');
+    expect(save).toBeGreaterThan(-1);
+    expect(save).toBeLessThan(script.indexOf('--method PUT'));
+    expect(script).toMatch(/--jq '[^\n]*conditions[^\n]*bypass_actors/);
+  });
 });
