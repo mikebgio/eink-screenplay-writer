@@ -45,7 +45,7 @@ Run `npm run check` before pushing. CI runs the same checks (as separate steps, 
 
 ## Contributing
 
-`main` takes changes only through pull requests, and only when the `ci` check has passed. Merges are squash merges only. Dependabot PRs go through the same gate.
+The gate on `main` is in force: changes arrive only through pull requests, and a PR can merge only when its `ci` check has passed. Merges are squash merges only. Dependabot PRs go through the same gate.
 
 1. Run `npm run check` before pushing.
 2. Open a PR against `main` and add its CHANGELOG line (see `CLAUDE.md`).
